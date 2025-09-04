@@ -115,6 +115,9 @@ builder.Services.AddScoped<IPropertyService, PropertyService>();
 builder.Services.AddScoped<IAuditLogService, AuditLogService>();
 builder.Services.AddScoped<IUnitService, UnitService>();
 builder.Services.AddScoped<ITenantService, TenantService>();
+builder.Services.AddScoped<ILeaseService, LeaseService>();
+builder.Services.AddScoped<IPaymentService, PaymentService>();
+builder.Services.AddScoped<IMaintenanceService, MaintenanceService>();
 
 var app = builder.Build();
 
