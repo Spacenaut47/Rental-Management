@@ -567,6 +567,8 @@ tailwind.min.css
 *.sqlite3
 *.db
 *.db3
+*.db-shm
+*.db-wal
 
 # ===========================================
 # Database Migrations (EXCLUDED as requested)
