@@ -44,6 +44,11 @@ public class PaymentService(AppDbContext db, IUnitOfWork uow, IMapper mapper, IA
 
     public async Task<decimal> GetTotalPaidAsync(int leaseId)
     {
-        return await _db.Payments.Where(p => p.LeaseId == leaseId).SumAsync(p => p.Amount);
+        var totalAsDouble = await _db.Payments
+        .Where(p => p.LeaseId == leaseId)
+        .Select(p => (double)p.Amount)   // <-- cast to double so SQLite can sum
+        .SumAsync();
+
+        return Convert.ToDecimal(totalAsDouble);
     }
 }
