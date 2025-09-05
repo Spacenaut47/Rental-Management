@@ -1,9 +1,32 @@
 // src/pages/PaymentsPage.tsx
 import { useState } from "react";
-import { useListPaymentsForLeaseQuery, useTotalPaidForLeaseQuery, useCreatePaymentMutation } from "../services/endpoints/paymentsApi";
+import {
+  useListPaymentsForLeaseQuery,
+  useTotalPaidForLeaseQuery,
+  useCreatePaymentMutation,
+} from "../services/endpoints/paymentsApi";
 import { useListLeasesQuery } from "../services/endpoints/leasesApi";
 import Button from "../components/ui/Button";
 import RoleGate from "../features/auth/RoleGate";
+
+function methodName(method: number | string | undefined | null) {
+  // Accept numbers or numeric strings
+  const m = typeof method === "string" ? Number(method) : method;
+  switch (m) {
+    case 1:
+      return "Cash";
+    case 2:
+      return "Card";
+    case 3:
+      return "Bank Transfer";
+    case 4:
+      return "Cheque";
+    case 5:
+      return "Online Gateway";
+    default:
+      return "Unknown";
+  }
+}
 
 export default function PaymentsPage() {
   const [leaseId, setLeaseId] = useState(1);
@@ -92,7 +115,9 @@ export default function PaymentsPage() {
               {data?.map((p)=>( 
                 <li key={p.id} className="flex items-center justify-between gap-4 py-2">
                   <div>
-                    <div className="font-medium">Payment #{p.id} — ₹{p.amount} • Method {p.method}</div>
+                    <div className="font-medium">
+                      Payment #{p.id} — ₹{p.amount} • {methodName(p.method)}
+                    </div>
                     <div className="text-sm text-gray-600">
                       {new Date(p.paidOnUtc).toLocaleString()} {p.reference ? `• ${p.reference}` : ""} {p.notes ? `• ${p.notes}` : ""}
                     </div>

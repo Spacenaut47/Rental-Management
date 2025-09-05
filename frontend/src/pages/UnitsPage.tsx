@@ -1,6 +1,10 @@
 // src/pages/UnitsPage.tsx
-import { useState } from "react";
-import { useListUnitsQuery, useCreateUnitMutation, useDeleteUnitMutation } from "../services/endpoints/unitsApi";
+import { useState, useEffect } from "react";
+import {
+  useListUnitsQuery,
+  useCreateUnitMutation,
+  useDeleteUnitMutation,
+} from "../services/endpoints/unitsApi";
 import { useListPropertiesQuery } from "../services/endpoints/propertiesApi";
 import Button from "../components/ui/Button";
 import RoleGate from "../features/auth/RoleGate";
@@ -15,8 +19,12 @@ export default function UnitsPage() {
 
   const [createUnit, { isLoading: creating }] = useCreateUnitMutation();
   const [deleteUnit] = useDeleteUnitMutation();
+
+  // optimistic items for newly created units
+  const [optimisticUnits, setOptimisticUnits] = useState<any[]>([]);
+
   const [form, setForm] = useState({
-    propertyId: 1,
+    propertyId: 0,
     unitNumber: "",
     bedrooms: 0,
     bathrooms: 0,
@@ -25,15 +33,46 @@ export default function UnitsPage() {
     isOccupied: false,
   });
 
+  useEffect(() => {
+    if (
+      propsData &&
+      propsData.length > 0 &&
+      (!form.propertyId || !propsData.some((p) => p.id === form.propertyId))
+    ) {
+      setForm((f) => ({ ...f, propertyId: propsData[0].id }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [propsData]);
+
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (!form.propertyId || !propsData?.some((p) => p.id === form.propertyId)) {
+      alert("Please select a valid Property before creating a Unit.");
+      return;
+    }
+
     try {
-      await createUnit({ ...form, propertyId: Number(form.propertyId) }).unwrap();
-      setForm({ ...form, unitNumber: "", bedrooms: 0, bathrooms: 0, rent: 0, sizeSqFt: 0, isOccupied: false });
+      // call create once and wait for result
+      const created = await createUnit({ ...form, propertyId: Number(form.propertyId) }).unwrap();
+
+      // push to optimistic list (if backend list hasn't updated yet)
+      setOptimisticUnits((cur) => {
+        if (cur.some((u) => u.id === created.id)) return cur;
+        return [created, ...cur];
+      });
+
+      // reset create form (keep property selection)
+      setForm((f) => ({ ...f, unitNumber: "", bedrooms: 0, bathrooms: 0, rent: 0, sizeSqFt: 0, isOccupied: false }));
+
+      // try to refresh server list
       await refetch();
     } catch (err) {
       console.error("Create unit failed", err);
-      alert("Failed to create unit.");
+      let msg = "Failed to create unit.";
+      const anyErr = err as any;
+      if (anyErr?.data) msg += " " + JSON.stringify(anyErr.data);
+      alert(msg);
     }
   };
 
@@ -41,6 +80,8 @@ export default function UnitsPage() {
     if (!confirm("Delete unit?")) return;
     try {
       await deleteUnit(id).unwrap();
+      // remove optimistic copy if present
+      setOptimisticUnits((cur) => cur.filter((u) => u.id !== id));
       await refetch();
     } catch (err) {
       console.error("Delete unit failed", err);
@@ -48,14 +89,31 @@ export default function UnitsPage() {
     }
   };
 
+  // merge server + optimistic units
+  const serverUnits = data ?? [];
+  const merged = new Map<number, any>();
+  optimisticUnits.forEach((u) => merged.set(u.id, u));
+  serverUnits.forEach((u: any) => merged.set(u.id, u));
+  const units = Array.from(merged.values());
+
   return (
     <div className="mx-auto w-full max-w-6xl p-6">
       <div className="mb-6 flex items-end justify-between">
         <h1 className="text-2xl font-bold">Units</h1>
         <div className="flex items-end gap-2">
           <div className="flex flex-col">
-            <label htmlFor="units-filter-propertyId" className="text-xs font-medium text-gray-600">Filter by Property ID</label>
-            <input id="units-filter-propertyId" className="w-40 rounded-md border p-2" value={propertyId} onChange={(e)=>setPid(e.target.value)} type="number" min={1} placeholder="e.g., 1" />
+            <label htmlFor="units-filter-propertyId" className="text-xs font-medium text-gray-600">
+              Filter by Property ID
+            </label>
+            <input
+              id="units-filter-propertyId"
+              className="w-40 rounded-md border p-2"
+              value={propertyId}
+              onChange={(e)=>setPid(e.target.value)}
+              type="number"
+              min={1}
+              placeholder="e.g., 1"
+            />
           </div>
           <Button onClick={()=>refetch()} aria-label="Apply property filter">Filter</Button>
         </div>
@@ -65,11 +123,21 @@ export default function UnitsPage() {
         <RoleGate allow={["Admin","Manager"]}>
           <form onSubmit={submit} className="rounded-2xl border bg-white p-4 shadow-sm">
             <h2 className="mb-3 text-lg font-semibold">Create Unit</h2>
+
             <div className="mb-3 rounded-md border bg-gray-50 p-3 text-sm">
               <div className="mb-2 font-medium">Choose Property</div>
               <div className="flex items-center gap-2">
-                <select id="unit-prop-select" className="rounded-md border p-2" value={form.propertyId} onChange={(e)=>setForm({...form, propertyId:Number(e.target.value)})}>
-                  {propsData?.map(p => (<option key={p.id} value={p.id}>#{p.id} — {p.name}</option>))}
+                <select
+                  id="unit-prop-select"
+                  className="rounded-md border p-2"
+                  value={form.propertyId}
+                  onChange={(e)=>setForm({...form, propertyId:Number(e.target.value)})}
+                >
+                  {propsData?.map(p => (
+                    <option key={p.id} value={p.id}>
+                      #{p.id} — {p.name}
+                    </option>
+                  ))}
                 </select>
                 <span className="text-xs text-gray-600">Selected: Property #{form.propertyId}</span>
               </div>
@@ -113,7 +181,7 @@ export default function UnitsPage() {
           <h2 className="mb-3 text-lg font-semibold">Units List (IDs shown)</h2>
           {isLoading ? <p>Loading...</p> : isError ? <p className="text-red-600">Failed to load units.</p> : (
             <ul className="divide-y">
-              {data?.map((u)=>( 
+              {units?.map((u:any)=>(
                 <li key={u.id} className="flex items-center justify-between gap-4 py-2">
                   <div>
                     <div className="font-medium">Unit #{u.id} — {u.unitNumber} • Property #{u.propertyId}</div>
