@@ -8,25 +8,36 @@ using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Security.Claims;
 
 namespace backend.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-public class AuthController(
-    AppDbContext db,
-    IUnitOfWork uow,
-    IPasswordHasher hasher,
-    ITokenService tokenService,
-    IValidator<RegisterRequest> registerValidator,
-    IValidator<LoginRequest> loginValidator) : ControllerBase
+public class AuthController : ControllerBase
 {
-    private readonly AppDbContext _db = db;
-    private readonly IUnitOfWork _uow = uow;
-    private readonly IPasswordHasher _hasher = hasher;
-    private readonly ITokenService _tokenService = tokenService;
-    private readonly IValidator<RegisterRequest> _registerValidator = registerValidator;
-    private readonly IValidator<LoginRequest> _loginValidator = loginValidator;
+    private readonly AppDbContext _db;
+    private readonly IUnitOfWork _uow;
+    private readonly IPasswordHasher _hasher;
+    private readonly ITokenService _tokenService;
+    private readonly IValidator<RegisterRequest> _registerValidator;
+    private readonly IValidator<LoginRequest> _loginValidator;
+
+    public AuthController(
+        AppDbContext db,
+        IUnitOfWork uow,
+        IPasswordHasher hasher,
+        ITokenService tokenService,
+        IValidator<RegisterRequest> registerValidator,
+        IValidator<LoginRequest> loginValidator)
+    {
+        _db = db ?? throw new ArgumentNullException(nameof(db));
+        _uow = uow ?? throw new ArgumentNullException(nameof(uow));
+        _hasher = hasher ?? throw new ArgumentNullException(nameof(hasher));
+        _tokenService = tokenService ?? throw new ArgumentNullException(nameof(tokenService));
+        _registerValidator = registerValidator ?? throw new ArgumentNullException(nameof(registerValidator));
+        _loginValidator = loginValidator ?? throw new ArgumentNullException(nameof(loginValidator));
+    }
 
     [HttpPost("register")]
     [AllowAnonymous]
@@ -100,10 +111,10 @@ public class AuthController(
     [Authorize]
     public async Task<IActionResult> Me()
     {
-        var id = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
-        if (id is null) return Unauthorized();
+        var idClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (string.IsNullOrWhiteSpace(idClaim) || !int.TryParse(idClaim, out var userId))
+            return Unauthorized();
 
-        var userId = int.Parse(id);
         var user = await _db.Users.FindAsync(userId);
         if (user is null) return Unauthorized();
 

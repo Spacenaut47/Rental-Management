@@ -11,10 +11,16 @@ namespace backend.Controllers;
 [ApiController]
 [Route("api/[controller]")]
 [Authorize(Policy = Policies.StaffAndUp)]
-public class PaymentsController(IPaymentService service, IValidator<PaymentCreateDto> validator) : ControllerBase
+public class PaymentsController : ControllerBase
 {
-    private readonly IPaymentService _service = service;
-    private readonly IValidator<PaymentCreateDto> _validator = validator;
+    private readonly IPaymentService _service;
+    private readonly IValidator<PaymentCreateDto> _validator;
+
+    public PaymentsController(IPaymentService service, IValidator<PaymentCreateDto> validator)
+    {
+        _service = service ?? throw new ArgumentNullException(nameof(service));
+        _validator = validator ?? throw new ArgumentNullException(nameof(validator));
+    }
 
     [HttpGet("lease/{leaseId:int}")]
     public async Task<ActionResult<IEnumerable<PaymentReadDto>>> GetForLease(int leaseId)
@@ -31,7 +37,7 @@ public class PaymentsController(IPaymentService service, IValidator<PaymentCreat
         var result = await _validator.ValidateAsync(dto);
         if (!result.IsValid) return BadRequest(result.Errors);
 
-        var actor = User.FindFirstValue(System.Security.Claims.ClaimTypes.Name) ?? "unknown";
+        var actor = User.FindFirstValue(ClaimTypes.Name) ?? "unknown";
         var created = await _service.CreateAsync(dto, actor);
         return CreatedAtAction(nameof(GetForLease), new { leaseId = created.LeaseId }, created);
     }

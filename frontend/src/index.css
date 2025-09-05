@@ -1,12 +1,11 @@
+/* src/index.css */
 /* Tailwind v4.1 — one-liner import */
 @import "tailwindcss";
 
-/* Optional: define a tiny theme token set */
-@theme {
+:root {
   --font-sans: ui-sans-serif, system-ui, sans-serif;
   --color-brand: #2563eb;
-}
-
-:root {
   font-family: var(--font-sans);
 }
+
+/* You can add app-level CSS rules below */

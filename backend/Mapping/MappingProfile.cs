@@ -31,10 +31,7 @@ public class MappingProfile : Profile
         // Leases
         CreateMap<Lease, LeaseReadDto>();
         CreateMap<LeaseCreateDto, Lease>();
-
-        // For updates: only map non-null source members so partial updates don't overwrite existing values
-        CreateMap<LeaseUpdateDto, Lease>()
-            .ForAllMembers(opts => opts.Condition((src, dest, srcMember) => srcMember != null));
+        CreateMap<LeaseUpdateDto, Lease>();
 
         // Payments
         CreateMap<Payment, PaymentReadDto>();

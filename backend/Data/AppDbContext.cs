@@ -3,19 +3,23 @@ using Microsoft.EntityFrameworkCore;
 
 namespace backend.Data;
 
-public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(options)
+public class AppDbContext : DbContext
 {
-    public DbSet<User> Users => Set<User>();
-    public DbSet<Property> Properties => Set<Property>();
-    public DbSet<Unit> Units => Set<Unit>();
-    public DbSet<Tenant> Tenants => Set<Tenant>();
-    public DbSet<Lease> Leases => Set<Lease>();
-    public DbSet<Payment> Payments => Set<Payment>();
-    public DbSet<MaintenanceRequest> MaintenanceRequests => Set<MaintenanceRequest>();
-    public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
+    public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
+
+    public DbSet<User> Users { get; set; } = null!;
+    public DbSet<Property> Properties { get; set; } = null!;
+    public DbSet<Unit> Units { get; set; } = null!;
+    public DbSet<Tenant> Tenants { get; set; } = null!;
+    public DbSet<Lease> Leases { get; set; } = null!;
+    public DbSet<Payment> Payments { get; set; } = null!;
+    public DbSet<MaintenanceRequest> MaintenanceRequests { get; set; } = null!;
+    public DbSet<AuditLog> AuditLogs { get; set; } = null!;
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        base.OnModelCreating(modelBuilder);
+
         modelBuilder.Entity<User>()
             .HasIndex(u => u.Username)
             .IsUnique();
@@ -59,7 +63,6 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             .HasForeignKey(p => p.LeaseId)
             .OnDelete(DeleteBehavior.Cascade);
 
-        // MaintenanceRequest: FK general checks handled in service; leave simple FKs
         modelBuilder.Entity<MaintenanceRequest>()
             .HasIndex(m => new { m.PropertyId, m.UnitId, m.TenantId });
     }

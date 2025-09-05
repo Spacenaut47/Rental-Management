@@ -1,3 +1,4 @@
+// src/features/auth/RegisterPage.tsx
 import { useState, useMemo } from "react";
 import { useRegisterMutation } from "../../services/endpoints/authApi";
 import Button from "../../components/ui/Button";
@@ -34,21 +35,16 @@ export default function RegisterPage() {
 
   const serverErrorText = useMemo(() => {
     if (!error) return "";
-    // RTK Query error normalization
     const e = error as FetchBaseQueryError | SerializedError;
-    // FetchBaseQueryError has "status" and "data"
     if ("data" in e && e.data) {
       const d = e.data as ProblemDetails | any[];
-      // FluentValidation+ApiController usually returns ProblemDetails with .errors
       if ((d as ProblemDetails).errors) {
         const errs = (d as ProblemDetails).errors!;
         return Object.values(errs).flat().join("\n");
       }
-      // Our AuthController might return an array of validation errors
       if (Array.isArray(d)) {
         return d.map((x: any) => x?.errorMessage ?? JSON.stringify(x)).join("\n");
       }
-      // Fallbacks
       return (d as ProblemDetails).detail || (d as ProblemDetails).title || "Registration failed.";
     }
     return "Registration failed.";
@@ -57,8 +53,15 @@ export default function RegisterPage() {
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (clientIssues.length) return; // don’t call API if client checks fail
-    await register(form).unwrap();
-    alert("Registered! You can now login.");
+    try {
+      await register(form).unwrap();
+      alert("Registered! You can now login.");
+      setForm({ username: "", email: "", password: "", role: 3 });
+    } catch (err) {
+      console.error("Register failed", err);
+      // RTK Query error details will populate `error` state; optionally show fallback:
+      if (!error) alert("Registration failed. See console for details.");
+    }
   };
 
   return (

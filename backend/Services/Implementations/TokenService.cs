@@ -8,9 +8,14 @@ using Microsoft.IdentityModel.Tokens;
 
 namespace backend.Services.Implementations;
 
-public class TokenService(JwtOptions jwtOptions) : ITokenService
+public class TokenService : ITokenService
 {
-    private readonly JwtOptions _jwt = jwtOptions;
+    private readonly JwtOptions _jwt;
+
+    public TokenService(JwtOptions jwtOptions)
+    {
+        _jwt = jwtOptions ?? throw new ArgumentNullException(nameof(jwtOptions));
+    }
 
     public (string token, DateTime expiresAtUtc) CreateAccessToken(User user)
     {

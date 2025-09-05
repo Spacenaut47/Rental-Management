@@ -11,10 +11,16 @@ namespace backend.Controllers;
 [ApiController]
 [Route("api/[controller]")]
 [Authorize(Policy = Policies.StaffAndUp)]
-public class UnitsController(IUnitService service, IValidator<UnitCreateDto> validator) : ControllerBase
+public class UnitsController : ControllerBase
 {
-    private readonly IUnitService _service = service;
-    private readonly IValidator<UnitCreateDto> _validator = validator;
+    private readonly IUnitService _service;
+    private readonly IValidator<UnitCreateDto> _validator;
+
+    public UnitsController(IUnitService service, IValidator<UnitCreateDto> validator)
+    {
+        _service = service ?? throw new ArgumentNullException(nameof(service));
+        _validator = validator ?? throw new ArgumentNullException(nameof(validator));
+    }
 
     [HttpGet]
     public async Task<ActionResult<IEnumerable<UnitReadDto>>> GetAll([FromQuery] int? propertyId)

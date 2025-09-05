@@ -1,9 +1,6 @@
+// src/pages/PropertiesPage.tsx
 import { useState } from "react";
-import {
-  useListPropertiesQuery,
-  useCreatePropertyMutation,
-  useDeletePropertyMutation,
-} from "../services/endpoints/propertiesApi";
+import { useListPropertiesQuery, useCreatePropertyMutation, useDeletePropertyMutation } from "../services/endpoints/propertiesApi";
 import Button from "../components/ui/Button";
 
 export default function PropertiesPage() {
@@ -22,9 +19,25 @@ export default function PropertiesPage() {
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    await createProperty(form).unwrap();
-    setForm({ name: "", addressLine1: "", city: "", state: "", zip: "", country: "", description: "" });
-    refetch();
+    try {
+      await createProperty(form).unwrap();
+      setForm({ name: "", addressLine1: "", city: "", state: "", zip: "", country: "", description: "" });
+      await refetch();
+    } catch (err) {
+      console.error("Create property failed", err);
+      alert("Failed to create property.");
+    }
+  };
+
+  const handleDelete = async (id: number) => {
+    if (!confirm("Delete property?")) return;
+    try {
+      await deleteProperty(id).unwrap();
+      await refetch();
+    } catch (err) {
+      console.error("Delete property failed", err);
+      alert("Failed to delete property.");
+    }
   };
 
   return (
@@ -89,13 +102,7 @@ export default function PropertiesPage() {
                         {p.addressLine1}, {p.city}, {p.state} {p.zip}, {p.country}
                       </div>
                     </div>
-                    <button
-                      aria-label={`Delete property ${p.name}`}
-                      onClick={() => deleteProperty(p.id).unwrap().then(()=>refetch())}
-                      className="rounded-md px-3 py-1 text-sm text-red-600 hover:bg-red-50"
-                    >
-                      Delete
-                    </button>
+                    <button aria-label={`Delete property ${p.name}`} onClick={() => handleDelete(p.id)} className="rounded-md px-3 py-1 text-sm text-red-600 hover:bg-red-50">Delete</button>
                   </li>
                 ))}
               </ul>

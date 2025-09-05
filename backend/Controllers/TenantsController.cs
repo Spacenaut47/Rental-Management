@@ -11,10 +11,16 @@ namespace backend.Controllers;
 [ApiController]
 [Route("api/[controller]")]
 [Authorize(Policy = Policies.StaffAndUp)]
-public class TenantsController(ITenantService service, IValidator<TenantCreateDto> validator) : ControllerBase
+public class TenantsController : ControllerBase
 {
-    private readonly ITenantService _service = service;
-    private readonly IValidator<TenantCreateDto> _validator = validator;
+    private readonly ITenantService _service;
+    private readonly IValidator<TenantCreateDto> _validator;
+
+    public TenantsController(ITenantService service, IValidator<TenantCreateDto> validator)
+    {
+        _service = service ?? throw new ArgumentNullException(nameof(service));
+        _validator = validator ?? throw new ArgumentNullException(nameof(validator));
+    }
 
     [HttpGet]
     public async Task<ActionResult<IEnumerable<TenantReadDto>>> GetAll([FromQuery] string? search)

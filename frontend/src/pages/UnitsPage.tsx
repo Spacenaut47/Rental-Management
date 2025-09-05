@@ -1,20 +1,16 @@
+// src/pages/UnitsPage.tsx
 import { useState } from "react";
-import {
-  useListUnitsQuery,
-  useCreateUnitMutation,
-  useDeleteUnitMutation,
-} from "../services/endpoints/unitsApi";
+import { useListUnitsQuery, useCreateUnitMutation, useDeleteUnitMutation } from "../services/endpoints/unitsApi";
 import { useListPropertiesQuery } from "../services/endpoints/propertiesApi";
 import Button from "../components/ui/Button";
 import RoleGate from "../features/auth/RoleGate";
 
 export default function UnitsPage() {
-  const [propertyId, setPid] = useState<number | "">("");
+  const [propertyId, setPid] = useState<string>("");
   const { data, isLoading, isError, refetch } = useListUnitsQuery(
     propertyId ? { propertyId: Number(propertyId) } : undefined
   );
 
-  // For helper dropdown
   const { data: propsData } = useListPropertiesQuery();
 
   const [createUnit, { isLoading: creating }] = useCreateUnitMutation();
@@ -31,9 +27,25 @@ export default function UnitsPage() {
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    await createUnit({ ...form, propertyId: Number(form.propertyId) }).unwrap();
-    setForm({ ...form, unitNumber: "", bedrooms: 0, bathrooms: 0, rent: 0, sizeSqFt: 0, isOccupied: false });
-    refetch();
+    try {
+      await createUnit({ ...form, propertyId: Number(form.propertyId) }).unwrap();
+      setForm({ ...form, unitNumber: "", bedrooms: 0, bathrooms: 0, rent: 0, sizeSqFt: 0, isOccupied: false });
+      await refetch();
+    } catch (err) {
+      console.error("Create unit failed", err);
+      alert("Failed to create unit.");
+    }
+  };
+
+  const handleDelete = async (id: number) => {
+    if (!confirm("Delete unit?")) return;
+    try {
+      await deleteUnit(id).unwrap();
+      await refetch();
+    } catch (err) {
+      console.error("Delete unit failed", err);
+      alert("Failed to delete unit.");
+    }
   };
 
   return (
@@ -42,18 +54,8 @@ export default function UnitsPage() {
         <h1 className="text-2xl font-bold">Units</h1>
         <div className="flex items-end gap-2">
           <div className="flex flex-col">
-            <label htmlFor="units-filter-propertyId" className="text-xs font-medium text-gray-600">
-              Filter by Property ID
-            </label>
-            <input
-              id="units-filter-propertyId"
-              className="w-40 rounded-md border p-2"
-              value={propertyId}
-              onChange={(e)=>setPid((e.target.value as any) || "")}
-              type="number"
-              min={1}
-              placeholder="e.g., 1"
-            />
+            <label htmlFor="units-filter-propertyId" className="text-xs font-medium text-gray-600">Filter by Property ID</label>
+            <input id="units-filter-propertyId" className="w-40 rounded-md border p-2" value={propertyId} onChange={(e)=>setPid(e.target.value)} type="number" min={1} placeholder="e.g., 1" />
           </div>
           <Button onClick={()=>refetch()} aria-label="Apply property filter">Filter</Button>
         </div>
@@ -63,23 +65,11 @@ export default function UnitsPage() {
         <RoleGate allow={["Admin","Manager"]}>
           <form onSubmit={submit} className="rounded-2xl border bg-white p-4 shadow-sm">
             <h2 className="mb-3 text-lg font-semibold">Create Unit</h2>
-
-            {/* ID helper for properties */}
             <div className="mb-3 rounded-md border bg-gray-50 p-3 text-sm">
               <div className="mb-2 font-medium">Choose Property</div>
               <div className="flex items-center gap-2">
-                <label htmlFor="unit-prop-select" className="sr-only">Property</label>
-                <select
-                  id="unit-prop-select"
-                  className="rounded-md border p-2"
-                  value={form.propertyId}
-                  onChange={(e)=>setForm({...form, propertyId:Number(e.target.value)})}
-                >
-                  {propsData?.map(p => (
-                    <option key={p.id} value={p.id}>
-                      #{p.id} — {p.name}
-                    </option>
-                  ))}
+                <select id="unit-prop-select" className="rounded-md border p-2" value={form.propertyId} onChange={(e)=>setForm({...form, propertyId:Number(e.target.value)})}>
+                  {propsData?.map(p => (<option key={p.id} value={p.id}>#{p.id} — {p.name}</option>))}
                 </select>
                 <span className="text-xs text-gray-600">Selected: Property #{form.propertyId}</span>
               </div>
@@ -123,20 +113,14 @@ export default function UnitsPage() {
           <h2 className="mb-3 text-lg font-semibold">Units List (IDs shown)</h2>
           {isLoading ? <p>Loading...</p> : isError ? <p className="text-red-600">Failed to load units.</p> : (
             <ul className="divide-y">
-              {data?.map((u)=>(
+              {data?.map((u)=>( 
                 <li key={u.id} className="flex items-center justify-between gap-4 py-2">
                   <div>
                     <div className="font-medium">Unit #{u.id} — {u.unitNumber} • Property #{u.propertyId}</div>
-                    <div className="text-sm text-gray-600">
-                      {u.bedrooms} br / {u.bathrooms} ba • ₹{u.rent} • {u.sizeSqFt} sqft • {u.isOccupied ? "Occupied" : "Vacant"}
-                    </div>
+                    <div className="text-sm text-gray-600">{u.bedrooms} br / {u.bathrooms} ba • ₹{u.rent} • {u.sizeSqFt} sqft • {u.isOccupied ? "Occupied" : "Vacant"}</div>
                   </div>
                   <RoleGate allow={["Admin"]}>
-                    <button
-                      aria-label={`Delete unit ${u.unitNumber}`}
-                      className="rounded-md px-3 py-1 text-sm text-red-600 hover:bg-red-50"
-                      onClick={()=>deleteUnit(u.id).unwrap().then(()=>refetch())}
-                    >Delete</button>
+                    <button aria-label={`Delete unit ${u.unitNumber}`} className="rounded-md px-3 py-1 text-sm text-red-600 hover:bg-red-50" onClick={() => handleDelete(u.id)}>Delete</button>
                   </RoleGate>
                 </li>
               ))}

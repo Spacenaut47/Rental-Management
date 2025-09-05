@@ -11,10 +11,16 @@ namespace backend.Controllers;
 [ApiController]
 [Route("api/[controller]")]
 [Authorize(Policy = Policies.StaffAndUp)]
-public class MaintenanceController(IMaintenanceService service, IValidator<MaintenanceCreateDto> validator) : ControllerBase
+public class MaintenanceController : ControllerBase
 {
-    private readonly IMaintenanceService _service = service;
-    private readonly IValidator<MaintenanceCreateDto> _validator = validator;
+    private readonly IMaintenanceService _service;
+    private readonly IValidator<MaintenanceCreateDto> _validator;
+
+    public MaintenanceController(IMaintenanceService service, IValidator<MaintenanceCreateDto> validator)
+    {
+        _service = service ?? throw new ArgumentNullException(nameof(service));
+        _validator = validator ?? throw new ArgumentNullException(nameof(validator));
+    }
 
     [HttpGet]
     public async Task<ActionResult<IEnumerable<MaintenanceReadDto>>> Get([FromQuery] int? propertyId, [FromQuery] int? unitId, [FromQuery] int? tenantId)

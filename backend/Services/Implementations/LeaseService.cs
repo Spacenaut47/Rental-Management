@@ -9,12 +9,20 @@ using Microsoft.EntityFrameworkCore;
 
 namespace backend.Services.Implementations;
 
-public class LeaseService(AppDbContext db, IUnitOfWork uow, IMapper mapper, IAuditLogService audit) : ILeaseService
+public class LeaseService : ILeaseService
 {
-    private readonly AppDbContext _db = db;
-    private readonly IUnitOfWork _uow = uow;
-    private readonly IMapper _mapper = mapper;
-    private readonly IAuditLogService _audit = audit;
+    private readonly AppDbContext _db;
+    private readonly IUnitOfWork _uow;
+    private readonly IMapper _mapper;
+    private readonly IAuditLogService _audit;
+
+    public LeaseService(AppDbContext db, IUnitOfWork uow, IMapper mapper, IAuditLogService audit)
+    {
+        _db = db ?? throw new ArgumentNullException(nameof(db));
+        _uow = uow ?? throw new ArgumentNullException(nameof(uow));
+        _mapper = mapper ?? throw new ArgumentNullException(nameof(mapper));
+        _audit = audit ?? throw new ArgumentNullException(nameof(audit));
+    }
 
     public async Task<IEnumerable<LeaseReadDto>> GetAllAsync(int? unitId = null, int? tenantId = null, bool? active = null)
     {
@@ -56,7 +64,7 @@ public class LeaseService(AppDbContext db, IUnitOfWork uow, IMapper mapper, IAud
         var entity = _mapper.Map<Lease>(dto);
         entity.IsActive = true;
 
-        _uow.GetRepository<Lease>().AddAsync(entity); // queued add
+        await _uow.GetRepository<Lease>().AddAsync(entity); // <-- awaited
         await _uow.SaveChangesAsync();
 
         await _audit.WriteAsync(actor, "Created", nameof(Lease), entity.Id, $"Lease for Unit {entity.UnitId} to Tenant {entity.TenantId}");

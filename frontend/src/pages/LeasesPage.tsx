@@ -1,3 +1,4 @@
+// src/pages/LeasesPage.tsx
 import { useState } from "react";
 import {
   useListLeasesQuery,
@@ -13,7 +14,6 @@ export default function LeasesPage() {
   const [filters, setFilters] = useState<{unitId?: number; tenantId?: number; active?: boolean}>({});
   const { data, isLoading, isError, refetch } = useListLeasesQuery(filters);
 
-  // Helpers
   const { data: unitsData } = useListUnitsQuery(undefined);
   const { data: tenantsData } = useListTenantsQuery(undefined);
 
@@ -31,8 +31,24 @@ export default function LeasesPage() {
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    await createLease(form).unwrap();
-    refetch();
+    try {
+      await createLease(form).unwrap();
+      await refetch();
+    } catch (err) {
+      console.error("Create lease failed", err);
+      alert("Failed to create lease.");
+    }
+  };
+
+  const handleDelete = async (id: number) => {
+    if (!confirm("Delete lease?")) return;
+    try {
+      await deleteLease(id).unwrap();
+      await refetch();
+    } catch (err) {
+      console.error("Delete lease failed", err);
+      alert("Failed to delete lease.");
+    }
   };
 
   return (
@@ -64,18 +80,10 @@ export default function LeasesPage() {
         <RoleGate allow={["Admin","Manager"]}>
           <form onSubmit={submit} className="rounded-2xl border bg-white p-4 shadow-sm">
             <h2 className="mb-3 text-lg font-semibold">Create Lease</h2>
-
-            {/* ID helpers */}
             <div className="mb-3 grid grid-cols-2 gap-3 rounded-md border bg-gray-50 p-3 text-sm">
               <div>
                 <div className="mb-1 font-medium">Choose Unit</div>
-                <label htmlFor="lease-unit-select" className="sr-only">Unit</label>
-                <select
-                  id="lease-unit-select"
-                  className="w-full rounded-md border p-2"
-                  value={form.unitId}
-                  onChange={(e)=>setForm({...form, unitId: Number(e.target.value)})}
-                >
+                <select id="lease-unit-select" className="w-full rounded-md border p-2" value={form.unitId} onChange={(e)=>setForm({...form, unitId: Number(e.target.value)})}>
                   {unitsData?.map(u => (
                     <option key={u.id} value={u.id}>
                       Unit #{u.id} — {u.unitNumber} (Property #{u.propertyId})
@@ -85,13 +93,7 @@ export default function LeasesPage() {
               </div>
               <div>
                 <div className="mb-1 font-medium">Choose Tenant</div>
-                <label htmlFor="lease-tenant-select" className="sr-only">Tenant</label>
-                <select
-                  id="lease-tenant-select"
-                  className="w-full rounded-md border p-2"
-                  value={form.tenantId}
-                  onChange={(e)=>setForm({...form, tenantId: Number(e.target.value)})}
-                >
+                <select id="lease-tenant-select" className="w-full rounded-md border p-2" value={form.tenantId} onChange={(e)=>setForm({...form, tenantId: Number(e.target.value)})}>
                   {tenantsData?.map(t => (
                     <option key={t.id} value={t.id}>
                       Tenant #{t.id} — {t.firstName} {t.lastName}
@@ -129,7 +131,7 @@ export default function LeasesPage() {
           <h2 className="mb-3 text-lg font-semibold">Leases List (IDs shown)</h2>
           {isLoading ? <p>Loading...</p> : isError ? <p className="text-red-600">Failed to load leases.</p> : (
             <ul className="divide-y">
-              {data?.map((l)=>(
+              {data?.map((l)=>( 
                 <li key={l.id} className="flex items-center justify-between gap-4 py-2">
                   <div>
                     <div className="font-medium">Lease #{l.id} — Unit #{l.unitId} • Tenant #{l.tenantId}</div>
@@ -141,7 +143,7 @@ export default function LeasesPage() {
                     <button
                       aria-label={`Delete lease ${l.id}`}
                       className="rounded-md px-3 py-1 text-sm text-red-600 hover:bg-red-50"
-                      onClick={()=>deleteLease(l.id).unwrap().then(()=>refetch())}
+                      onClick={() => handleDelete(l.id)}
                     >
                       Delete
                     </button>

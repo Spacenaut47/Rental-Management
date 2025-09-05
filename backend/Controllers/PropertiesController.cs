@@ -8,9 +8,14 @@ namespace backend.Controllers;
 [ApiController]
 [Route("api/[controller]")]
 [Authorize]
-public class PropertiesController(IPropertyService service) : ControllerBase
+public class PropertiesController : ControllerBase
 {
-    private readonly IPropertyService _service = service;
+    private readonly IPropertyService _service;
+
+    public PropertiesController(IPropertyService service)
+    {
+        _service = service ?? throw new ArgumentNullException(nameof(service));
+    }
 
     [HttpGet]
     public async Task<ActionResult<IEnumerable<PropertyReadDto>>> GetAll()

@@ -4,13 +4,18 @@ using backend.Repositories.Interfaces;
 
 namespace backend.Repositories.Ef;
 
-public class UnitOfWork(AppDbContext db) : IUnitOfWork
+public class UnitOfWork : IUnitOfWork
 {
-    private readonly AppDbContext _db = db;
+    private readonly AppDbContext _db;
 
     private IGenericRepository<User>? _users;
     private IGenericRepository<Property>? _properties;
     private IGenericRepository<Unit>? _units;
+
+    public UnitOfWork(AppDbContext db)
+    {
+        _db = db ?? throw new ArgumentNullException(nameof(db));
+    }
 
     public IGenericRepository<User> Users => _users ??= new GenericRepository<User>(_db);
     public IGenericRepository<Property> Properties => _properties ??= new GenericRepository<Property>(_db);

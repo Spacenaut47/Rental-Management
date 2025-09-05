@@ -1,9 +1,6 @@
+// src/pages/TenantsPage.tsx
 import { useState } from "react";
-import {
-  useListTenantsQuery,
-  useCreateTenantMutation,
-  useDeleteTenantMutation,
-} from "../services/endpoints/tenantsApi";
+import { useListTenantsQuery, useCreateTenantMutation, useDeleteTenantMutation } from "../services/endpoints/tenantsApi";
 import RoleGate from "../features/auth/RoleGate";
 import Button from "../components/ui/Button";
 
@@ -21,9 +18,25 @@ export default function TenantsPage() {
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    await createTenant(form).unwrap();
-    setForm({ firstName: "", lastName: "", email: "", phone: "" });
-    refetch();
+    try {
+      await createTenant(form).unwrap();
+      setForm({ firstName: "", lastName: "", email: "", phone: "" });
+      await refetch();
+    } catch (err) {
+      console.error("Create tenant failed", err);
+      alert("Failed to create tenant.");
+    }
+  };
+
+  const handleDelete = async (id: number) => {
+    if (!confirm("Delete tenant?")) return;
+    try {
+      await deleteTenant(id).unwrap();
+      await refetch();
+    } catch (err) {
+      console.error("Delete tenant failed", err);
+      alert("Failed to delete tenant.");
+    }
   };
 
   return (
@@ -33,13 +46,7 @@ export default function TenantsPage() {
         <div className="flex items-end gap-2">
           <div className="flex flex-col">
             <label htmlFor="tenant-search" className="text-xs font-medium text-gray-600">Search (name or email)</label>
-            <input
-              id="tenant-search"
-              className="rounded-md border p-2"
-              placeholder="e.g., John or john@demo.com"
-              value={search}
-              onChange={(e)=>setSearch(e.target.value)}
-            />
+            <input id="tenant-search" className="rounded-md border p-2" placeholder="e.g., John or john@demo.com" value={search} onChange={(e)=>setSearch(e.target.value)} />
           </div>
           <Button onClick={()=>refetch()} aria-label="Search tenants">Search</Button>
         </div>
@@ -84,11 +91,7 @@ export default function TenantsPage() {
                     <div className="text-sm text-gray-600">{t.email} {t.phone ? `• ${t.phone}` : ""}</div>
                   </div>
                   <RoleGate allow={["Admin"]}>
-                    <button
-                      aria-label={`Delete tenant ${t.firstName} ${t.lastName}`}
-                      onClick={() => deleteTenant(t.id).unwrap().then(()=>refetch())}
-                      className="rounded-md px-3 py-1 text-sm text-red-600 hover:bg-red-50"
-                    >Delete</button>
+                    <button aria-label={`Delete tenant ${t.firstName} ${t.lastName}`} onClick={() => handleDelete(t.id)} className="rounded-md px-3 py-1 text-sm text-red-600 hover:bg-red-50">Delete</button>
                   </RoleGate>
                 </li>
               ))}

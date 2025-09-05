@@ -9,9 +9,14 @@ namespace backend.Controllers;
 [ApiController]
 [Route("api/[controller]")]
 [Authorize(Policy = Policies.AdminOnly)]
-public class AdminController(AppDbContext db) : ControllerBase
+public class AdminController : ControllerBase
 {
-    private readonly AppDbContext _db = db;
+    private readonly AppDbContext _db;
+
+    public AdminController(AppDbContext db)
+    {
+        _db = db ?? throw new ArgumentNullException(nameof(db));
+    }
 
     [HttpGet("audit")]
     public async Task<IActionResult> GetAudit([FromQuery] int page = 1, [FromQuery] int pageSize = 20, [FromQuery] string? entity = null)

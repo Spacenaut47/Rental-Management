@@ -1,3 +1,4 @@
+// src/pages/PaymentsPage.tsx
 import { useState } from "react";
 import { useListPaymentsForLeaseQuery, useTotalPaidForLeaseQuery, useCreatePaymentMutation } from "../services/endpoints/paymentsApi";
 import { useListLeasesQuery } from "../services/endpoints/leasesApi";
@@ -9,22 +10,26 @@ export default function PaymentsPage() {
   const { data, isLoading, isError, refetch } = useListPaymentsForLeaseQuery(leaseId);
   const { data: total } = useTotalPaidForLeaseQuery(leaseId);
 
-  // Helper: list leases (IDs visible)
   const { data: leasesData } = useListLeasesQuery(undefined);
 
   const [createPayment, { isLoading: creating }] = useCreatePaymentMutation();
   const [form, setForm] = useState({
     amount: 1200,
-    method: 3, // BankTransfer
+    method: 3,
     reference: "",
     notes: "",
   });
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    await createPayment({ leaseId, ...form }).unwrap();
-    setForm({ ...form, reference: "", notes: "" });
-    refetch();
+    try {
+      await createPayment({ leaseId, ...form }).unwrap();
+      setForm({ ...form, reference: "", notes: "" });
+      await refetch();
+    } catch (err) {
+      console.error("Create payment failed", err);
+      alert("Failed to record payment.");
+    }
   };
 
   return (
@@ -35,17 +40,8 @@ export default function PaymentsPage() {
           <div className="flex flex-col">
             <label htmlFor="payments-leaseId" className="text-xs font-medium text-gray-600">Lease ID</label>
             <div className="flex gap-2">
-              <select
-                id="payments-leaseId"
-                className="w-56 rounded-md border p-2"
-                value={leaseId}
-                onChange={(e)=>setLeaseId(Number(e.target.value))}
-              >
-                {leasesData?.map(l => (
-                  <option key={l.id} value={l.id}>
-                    Lease #{l.id} — Unit #{l.unitId} • Tenant #{l.tenantId}
-                  </option>
-                ))}
+              <select id="payments-leaseId" className="w-56 rounded-md border p-2" value={leaseId} onChange={(e)=>setLeaseId(Number(e.target.value))}>
+                {leasesData?.map(l => (<option key={l.id} value={l.id}>Lease #{l.id} — Unit #{l.unitId} • Tenant #{l.tenantId}</option>))}
               </select>
               <Button onClick={()=>refetch()} aria-label="Load payments">Load</Button>
             </div>
@@ -93,7 +89,7 @@ export default function PaymentsPage() {
           <div className="mb-3 text-sm text-gray-600">Total paid: ₹{total ?? 0}</div>
           {isLoading ? <p>Loading...</p> : isError ? <p className="text-red-600">Failed to load payments.</p> : (
             <ul className="divide-y">
-              {data?.map((p)=>(
+              {data?.map((p)=>( 
                 <li key={p.id} className="flex items-center justify-between gap-4 py-2">
                   <div>
                     <div className="font-medium">Payment #{p.id} — ₹{p.amount} • Method {p.method}</div>

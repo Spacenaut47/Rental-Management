@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+// src/pages/AdminAuditPage.tsx
+import { useEffect, useState, useCallback } from "react";
 import Button from "../components/ui/Button";
 import RoleGate from "../features/auth/RoleGate";
 import { API_BASE } from "../lib/constants";
@@ -25,19 +26,44 @@ export default function AdminAuditPage() {
   const [entity, setEntity] = useState("");
   const [page, setPage] = useState(1);
   const [data, setData] = useState<AuditResponse | null>(null);
+  const [loading, setLoading] = useState(false);
   const pageSize = 20;
 
-  const load = async () => {
-    const q = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
-    if (entity) q.set("entity", entity);
-    const res = await fetch(`${API_BASE}/admin/audit?${q.toString()}`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (res.ok) setData(await res.json());
-    else setData(null);
-  };
+  const load = useCallback(async (opts?: { signal?: AbortSignal }) => {
+    setLoading(true);
+    try {
+      const q = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
+      if (entity) q.set("entity", entity);
+      const headers: Record<string, string> = {};
+      if (token) headers.Authorization = `Bearer ${token}`;
 
-  useEffect(() => { load(); /* eslint-disable-next-line */ }, [page]);
+      const res = await fetch(`${API_BASE}/admin/audit?${q.toString()}`, {
+        headers,
+        signal: opts?.signal,
+      });
+      if (!res.ok) {
+        setData(null);
+      } else {
+        const json = await res.json();
+        setData(json);
+      }
+    } catch (err) {
+      if ((err as any)?.name === "AbortError") {
+        // aborted — ignore
+      } else {
+        console.error("Failed to load audit:", err);
+        setData(null);
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, [entity, page, pageSize, token]);
+
+  useEffect(() => {
+    const ctrl = new AbortController();
+    load({ signal: ctrl.signal });
+    return () => ctrl.abort();
+  }, [load]);
 
   return (
     <RoleGate allow={["Admin"]}>
@@ -49,11 +75,13 @@ export default function AdminAuditPage() {
               <label htmlFor="audit-entity" className="text-xs font-medium text-gray-600">Filter by Entity</label>
               <input id="audit-entity" className="w-40 rounded-md border p-2" placeholder="e.g., Lease" value={entity} onChange={(e)=>setEntity(e.target.value)} />
             </div>
-            <Button onClick={()=>{ setPage(1); load(); }} aria-label="Apply audit filter">Filter</Button>
+            <Button onClick={() => setPage(1)} aria-label="Apply audit filter">Filter</Button>
           </div>
         </div>
 
-        {!data ? <p className="text-red-600">Failed to load audit.</p> : (
+        {!data ? (
+          <p className="text-red-600">{loading ? "Loading…" : "Failed to load audit."}</p>
+        ) : (
           <>
             <div className="rounded-2xl border bg-white p-4 shadow-sm">
               <div className="mb-3 text-sm text-gray-600">Total: {data.total}</div>
