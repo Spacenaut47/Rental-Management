@@ -6,6 +6,7 @@ import {
   useDeleteUnitMutation,
 } from "../services/endpoints/unitsApi";
 import { useListPropertiesQuery } from "../services/endpoints/propertiesApi";
+import { useListLeasesQuery } from "../services/endpoints/leasesApi";
 import Button from "../components/ui/Button";
 import RoleGate from "../features/auth/RoleGate";
 
@@ -14,6 +15,9 @@ export default function UnitsPage() {
   const { data, isLoading, isError, refetch } = useListUnitsQuery(
     propertyId ? { propertyId: Number(propertyId) } : undefined
   );
+
+  // fetch leases so we can compute occupancy on the frontend
+  const { data: leasesData, refetch: refetchLeases } = useListLeasesQuery(undefined);
 
   const { data: propsData } = useListPropertiesQuery();
 
@@ -53,7 +57,7 @@ export default function UnitsPage() {
     }
 
     try {
-      // call create once and wait for result
+      // create unit once and wait for result
       const created = await createUnit({ ...form, propertyId: Number(form.propertyId) }).unwrap();
 
       // push to optimistic list (if backend list hasn't updated yet)
@@ -65,8 +69,9 @@ export default function UnitsPage() {
       // reset create form (keep property selection)
       setForm((f) => ({ ...f, unitNumber: "", bedrooms: 0, bathrooms: 0, rent: 0, sizeSqFt: 0, isOccupied: false }));
 
-      // try to refresh server list
+      // refresh server list & leases so occupancy is recalculated
       await refetch();
+      await refetchLeases();
     } catch (err) {
       console.error("Create unit failed", err);
       let msg = "Failed to create unit.";
@@ -83,6 +88,7 @@ export default function UnitsPage() {
       // remove optimistic copy if present
       setOptimisticUnits((cur) => cur.filter((u) => u.id !== id));
       await refetch();
+      await refetchLeases();
     } catch (err) {
       console.error("Delete unit failed", err);
       alert("Failed to delete unit.");
@@ -95,6 +101,13 @@ export default function UnitsPage() {
   optimisticUnits.forEach((u) => merged.set(u.id, u));
   serverUnits.forEach((u: any) => merged.set(u.id, u));
   const units = Array.from(merged.values());
+
+  // compute displayed occupancy using leases (active leases mean occupied)
+  const leases = leasesData ?? [];
+  const unitsWithComputedOccupancy = units.map((u) => {
+    const occupiedBecauseOfLease = leases.some((l: any) => l.unitId === u.id && l.isActive);
+    return { ...u, isOccupied: Boolean(u.isOccupied) || occupiedBecauseOfLease };
+  });
 
   return (
     <div className="mx-auto w-full max-w-6xl p-6">
@@ -109,18 +122,20 @@ export default function UnitsPage() {
               id="units-filter-propertyId"
               className="w-40 rounded-md border p-2"
               value={propertyId}
-              onChange={(e)=>setPid(e.target.value)}
+              onChange={(e) => setPid(e.target.value)}
               type="number"
               min={1}
               placeholder="e.g., 1"
             />
           </div>
-          <Button onClick={()=>refetch()} aria-label="Apply property filter">Filter</Button>
+          <Button onClick={() => { refetch(); refetchLeases(); }} aria-label="Apply property filter">
+            Filter
+          </Button>
         </div>
       </div>
 
       <div className="grid gap-6 md:grid-cols-2">
-        <RoleGate allow={["Admin","Manager"]}>
+        <RoleGate allow={["Admin", "Manager"]}>
           <form onSubmit={submit} className="rounded-2xl border bg-white p-4 shadow-sm">
             <h2 className="mb-3 text-lg font-semibold">Create Unit</h2>
 
@@ -131,9 +146,9 @@ export default function UnitsPage() {
                   id="unit-prop-select"
                   className="rounded-md border p-2"
                   value={form.propertyId}
-                  onChange={(e)=>setForm({...form, propertyId:Number(e.target.value)})}
+                  onChange={(e) => setForm({ ...form, propertyId: Number(e.target.value) })}
                 >
-                  {propsData?.map(p => (
+                  {propsData?.map((p) => (
                     <option key={p.id} value={p.id}>
                       #{p.id} — {p.name}
                     </option>
@@ -146,27 +161,27 @@ export default function UnitsPage() {
             <div className="grid grid-cols-2 gap-3">
               <div className="flex flex-col">
                 <label htmlFor="unit-number" className="text-sm font-medium">Unit Number</label>
-                <input id="unit-number" className="rounded-md border p-2" value={form.unitNumber} onChange={(e)=>setForm({...form, unitNumber:e.target.value})} placeholder="e.g., 2A" required/>
+                <input id="unit-number" className="rounded-md border p-2" value={form.unitNumber} onChange={(e) => setForm({ ...form, unitNumber: e.target.value })} placeholder="e.g., 2A" required />
               </div>
               <div className="flex flex-col">
                 <label htmlFor="unit-bedrooms" className="text-sm font-medium">Bedrooms</label>
-                <input id="unit-bedrooms" className="rounded-md border p-2" type="number" min={0} value={form.bedrooms} onChange={(e)=>setForm({...form, bedrooms:Number(e.target.value)})}/>
+                <input id="unit-bedrooms" className="rounded-md border p-2" type="number" min={0} value={form.bedrooms} onChange={(e) => setForm({ ...form, bedrooms: Number(e.target.value) })} />
               </div>
               <div className="flex flex-col">
                 <label htmlFor="unit-bathrooms" className="text-sm font-medium">Bathrooms</label>
-                <input id="unit-bathrooms" className="rounded-md border p-2" type="number" min={0} value={form.bathrooms} onChange={(e)=>setForm({...form, bathrooms:Number(e.target.value)})}/>
+                <input id="unit-bathrooms" className="rounded-md border p-2" type="number" min={0} value={form.bathrooms} onChange={(e) => setForm({ ...form, bathrooms: Number(e.target.value) })} />
               </div>
               <div className="flex flex-col">
                 <label htmlFor="unit-rent" className="text-sm font-medium">Monthly Rent (₹)</label>
-                <input id="unit-rent" className="rounded-md border p-2" type="number" min={0} value={form.rent} onChange={(e)=>setForm({...form, rent:Number(e.target.value)})}/>
+                <input id="unit-rent" className="rounded-md border p-2" type="number" min={0} value={form.rent} onChange={(e) => setForm({ ...form, rent: Number(e.target.value) })} />
               </div>
               <div className="flex flex-col">
                 <label htmlFor="unit-size" className="text-sm font-medium">Size (sqft)</label>
-                <input id="unit-size" className="rounded-md border p-2" type="number" min={0} value={form.sizeSqFt} onChange={(e)=>setForm({...form, sizeSqFt:Number(e.target.value)})}/>
+                <input id="unit-size" className="rounded-md border p-2" type="number" min={0} value={form.sizeSqFt} onChange={(e) => setForm({ ...form, sizeSqFt: Number(e.target.value) })} />
               </div>
               <div className="col-span-2">
                 <label htmlFor="unit-occupied" className="inline-flex items-center gap-2 text-sm">
-                  <input id="unit-occupied" type="checkbox" checked={form.isOccupied} onChange={(e)=>setForm({...form, isOccupied:e.target.checked})}/>
+                  <input id="unit-occupied" type="checkbox" checked={form.isOccupied} onChange={(e) => setForm({ ...form, isOccupied: e.target.checked })} />
                   Mark as Occupied
                 </label>
               </div>
@@ -181,7 +196,7 @@ export default function UnitsPage() {
           <h2 className="mb-3 text-lg font-semibold">Units List (IDs shown)</h2>
           {isLoading ? <p>Loading...</p> : isError ? <p className="text-red-600">Failed to load units.</p> : (
             <ul className="divide-y">
-              {units?.map((u:any)=>(
+              {unitsWithComputedOccupancy.map((u: any) => (
                 <li key={u.id} className="flex items-center justify-between gap-4 py-2">
                   <div>
                     <div className="font-medium">Unit #{u.id} — {u.unitNumber} • Property #{u.propertyId}</div>
