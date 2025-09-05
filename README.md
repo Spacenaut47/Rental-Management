@@ -113,5 +113,3 @@ Each controller corresponds to a domain (e.g. `PropertiesController`, `TenantsCo
 - The frontend communicates with the backend through a configured API base URL.  
 - SQLite is included for simplicity, but the backend can be adapted to other databases if needed.  
 - JWT secret keys and configuration are set in the backend configuration files.  
-
-You can choose a license for this repository (for example, MIT). Add a `LICENSE` file in the root if you want to publish it as open source.
