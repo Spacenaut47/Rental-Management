@@ -139,31 +139,23 @@ app.UseAuthorization();
 
 app.MapControllers();
 
-// DB migrate + seed
+// DB migrate + seed (safer)
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     var hasher = scope.ServiceProvider.GetRequiredService<IPasswordHasher>();
     var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
-    
+
     try
     {
-        logger.LogInformation("Ensuring database is created...");
-        
-        if (app.Environment.IsDevelopment())
-        {
-            // For development: Just ensure the database schema exists
-            await db.Database.EnsureCreatedAsync();
-        }
-        else
-        {
-            // For production: Use proper migrations
-            await db.Database.MigrateAsync();
-        }
-        
-        logger.LogInformation("Running seed data initialization...");
+        logger.LogInformation("Applying EF migrations (if any)...");
+        // Use migrations in all environments to keep things consistent.
+        // EnsureCreated() is avoided to prevent divergence from migrations.
+        await db.Database.MigrateAsync();
+
+        logger.LogInformation("Running idempotent seed...");
         await SeedData.InitializeAsync(db, hasher);
-        
+
         logger.LogInformation("Database setup completed successfully.");
     }
     catch (Exception ex)
