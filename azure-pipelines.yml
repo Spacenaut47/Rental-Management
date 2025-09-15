@@ -124,7 +124,7 @@ stages:
           - task: AzureWebApp@1
             displayName: 'Deploy backend to Azure App Service'
             inputs:
-              azureSubscription: '<Name of your Azure service connection>'
+              azureSubscription: 'AzureServiceConnection-RM'
               appType: 'webAppLinux'    # change to webApp for Windows hosting
               appName: $(AZURE_WEBAPP_NAME)
               package: $(Pipeline.Workspace)/backend_artifact/**/*
