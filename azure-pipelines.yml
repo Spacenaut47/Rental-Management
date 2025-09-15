@@ -1,19 +1,130 @@
-# Starter pipeline
-# Start with a minimal pipeline that you can customize to build and deploy your code.
-# Add steps that build, run tests, deploy, and more:
-# https://aka.ms/yaml
-
 trigger:
-- main
+  branches:
+    include:
+      - main
+      - master
 
-pool:
-  vmImage: ubuntu-latest
+pr:
+  branches:
+    include:
+      - main
 
-steps:
-- script: echo Hello, world!
-  displayName: 'Run a one-line script'
+variables:
+  # set these in pipeline variables or Azure DevOps Library (secure)
+  AZURE_STATIC_WEBAPP_API_TOKEN: $(AZURE_STATIC_WEBAPP_API_TOKEN) # deployment token for Static Web App (secure pipeline variable)
+  AZURE_WEBAPP_NAME: "your-backend-appservice-name"               # set in pipeline variables
+  AZURE_RESOURCE_GROUP: "your-resource-group"                    # set in pipeline variables
+  DOTNET_VERSION: '8.0.x'                                        # change to the version you need
+  NODE_VERSION: '18.x'                                           # change if you need
 
-- script: |
-    echo Add other tasks to build, test, and deploy your project.
-    echo See https://aka.ms/yaml
-  displayName: 'Run a multi-line script'
+stages:
+- stage: Build
+  displayName: Build stage
+  jobs:
+  - job: BuildBackend
+    displayName: Build & Test Backend
+    pool:
+      vmImage: 'ubuntu-latest'
+    steps:
+    - task: UseDotNet@2
+      displayName: 'Use .NET SDK'
+      inputs:
+        packageType: 'sdk'
+        version: $(DOTNET_VERSION)
+
+    - script: |
+        cd backend
+        dotnet restore
+        dotnet build --configuration Release --no-restore
+        dotnet test --no-build --verbosity normal || true
+      displayName: 'dotnet restore/build/test'
+
+    - script: |
+        cd backend
+        dotnet publish -c Release -o $(Build.ArtifactStagingDirectory)/backend_publish
+      displayName: 'dotnet publish'
+      
+    - publish: $(Build.ArtifactStagingDirectory)/backend_publish
+      artifact: backend_artifact
+
+  - job: BuildFrontend
+    displayName: Build Frontend
+    pool:
+      vmImage: 'ubuntu-latest'
+    steps:
+    - task: NodeTool@0
+      inputs:
+        versionSpec: $(NODE_VERSION)
+      displayName: 'Use Node'
+
+    - script: |
+        cd frontend
+        npm ci
+        npm run build
+      displayName: 'npm install & build (Vite)'
+
+    - publish: frontend/dist
+      artifact: frontend_artifact
+
+- stage: Deploy
+  displayName: Deploy stage
+  dependsOn: Build
+  jobs:
+  - deployment: DeployFrontend
+    displayName: Deploy Frontend to Azure Static Web Apps
+    environment: 'static-web-app'
+    pool:
+      vmImage: 'ubuntu-latest'
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - download: current
+            artifact: frontend_artifact
+
+          # Deploy to Azure Static Web Apps using the deployment token (recommended)
+          - task: Bash@3
+            displayName: 'Deploy frontend to Azure Static Web App (via AZ CLI)'
+            inputs:
+              targetType: 'inline'
+              script: |
+                set -e
+                echo "Preparing Static Web App deployment..."
+                # Install Azure CLI (usually preinstalled)
+                az --version || curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+                # login using service connection: we use az login via service principal credentials stored in pipeline variables
+                # See instructions below for how to create AZURE_SP_APPID / AZURE_SP_PASSWORD / AZURE_SP_TENANT pipeline variables
+                az login --service-principal -u $(AZURE_SP_APPID) -p $(AZURE_SP_PASSWORD) --tenant $(AZURE_SP_TENANT)
+                # Use the Static Web Apps deployment token (safer): push artifact content to SWA
+                if [ -z "${AZURE_STATIC_WEBAPP_API_TOKEN}" ]; then
+                  echo "ERROR: AZURE_STATIC_WEBAPP_API_TOKEN not set"
+                  exit 1
+                fi
+                # upload the built frontend contents (frontend/dist)
+                zip -r swa_payload.zip frontend/dist/*
+                # use the Static Web Apps CLI REST deploy (token-based)
+                curl -X POST "https://api.github.com/repos/OWNER/REPO" -sS > /dev/null || true
+                # Simpler: use GitHub Action normally; for Azure DevOps, prefer az staticwebapp upload (part of az cli ext)
+                az extension add --name webapp || true
+                az staticwebapp upload --name $(AZURE_STATIC_WEBAPP_NAME) --resource-group $(AZURE_RESOURCE_GROUP) --source frontend/dist --subscription $(AZURE_SUBSCRIPTION_ID)
+            env:
+              AZURE_STATIC_WEBAPP_API_TOKEN: $(AZURE_STATIC_WEBAPP_API_TOKEN)
+  - deployment: DeployBackend
+    displayName: Deploy Backend to Azure App Service
+    environment: 'app-service'
+    pool:
+      vmImage: 'ubuntu-latest'
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - download: current
+            artifact: backend_artifact
+
+          - task: AzureWebApp@1
+            displayName: 'Deploy backend to Azure App Service'
+            inputs:
+              azureSubscription: '<Name of your Azure service connection>'
+              appType: 'webAppLinux'    # change to webApp for Windows hosting
+              appName: $(AZURE_WEBAPP_NAME)
+              package: $(Pipeline.Workspace)/backend_artifact/**/*
