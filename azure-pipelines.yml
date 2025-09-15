@@ -14,8 +14,11 @@ variables:
   AZURE_STATIC_WEBAPP_API_TOKEN: $(AZURE_STATIC_WEBAPP_API_TOKEN) # deployment token for Static Web App (secure pipeline variable)
   AZURE_WEBAPP_NAME: "your-backend-appservice-name"               # set in pipeline variables
   AZURE_RESOURCE_GROUP: "your-resource-group"                    # set in pipeline variables
+  AZURE_STATIC_WEBAPP_NAME: "your-static-webapp-name"            # set in pipeline variables
+  AZURE_SUBSCRIPTION_ID: "your-subscription-id"                  # set in pipeline variables
   DOTNET_VERSION: '8.0.x'                                        # change to the version you need
   NODE_VERSION: '18.x'                                           # change if you need
+  SELF_HOSTED_POOL: 'self-hosted-pool'                           # change if your pool has a different name
 
 stages:
 - stage: Build
@@ -24,7 +27,9 @@ stages:
   - job: BuildBackend
     displayName: Build & Test Backend
     pool:
-      vmImage: 'ubuntu-latest'
+      name: $(SELF_HOSTED_POOL)
+      demands:
+        - agent.os -equals Windows_NT
     steps:
     - task: UseDotNet@2
       displayName: 'Use .NET SDK'
@@ -32,38 +37,58 @@ stages:
         packageType: 'sdk'
         version: $(DOTNET_VERSION)
 
-    - script: |
-        cd backend
-        dotnet restore
-        dotnet build --configuration Release --no-restore
-        dotnet test --no-build --verbosity normal || true
+    - task: PowerShell@2
       displayName: 'dotnet restore/build/test'
+      inputs:
+        targetType: 'inline'
+        script: |
+          Set-StrictMode -Version Latest
+          Push-Location backend
+          dotnet restore
+          dotnet build --configuration Release --no-restore
+          try {
+            dotnet test --no-build --verbosity normal
+          } catch {
+            Write-Host "Tests failed (continuing pipeline)."
+          }
+          Pop-Location
 
-    - script: |
-        cd backend
-        dotnet publish -c Release -o $(Build.ArtifactStagingDirectory)/backend_publish
+    - task: PowerShell@2
       displayName: 'dotnet publish'
-      
-    - publish: $(Build.ArtifactStagingDirectory)/backend_publish
+      inputs:
+        targetType: 'inline'
+        script: |
+          Push-Location backend
+          dotnet publish -c Release -o "$(Build.ArtifactStagingDirectory)\backend_publish"
+          Pop-Location
+
+    - publish: $(Build.ArtifactStagingDirectory)\backend_publish
       artifact: backend_artifact
 
   - job: BuildFrontend
     displayName: Build Frontend
     pool:
-      vmImage: 'ubuntu-latest'
+      name: $(SELF_HOSTED_POOL)
+      demands:
+        - agent.os -equals Windows_NT
     steps:
     - task: NodeTool@0
       inputs:
         versionSpec: $(NODE_VERSION)
       displayName: 'Use Node'
 
-    - script: |
-        cd frontend
-        npm ci
-        npm run build
+    - task: PowerShell@2
       displayName: 'npm install & build (Vite)'
+      inputs:
+        targetType: 'inline'
+        script: |
+          Set-StrictMode -Version Latest
+          Push-Location frontend
+          npm ci
+          npm run build
+          Pop-Location
 
-    - publish: frontend/dist
+    - publish: frontend\dist
       artifact: frontend_artifact
 
 - stage: Deploy
@@ -74,7 +99,9 @@ stages:
     displayName: Deploy Frontend to Azure Static Web Apps
     environment: 'static-web-app'
     pool:
-      vmImage: 'ubuntu-latest'
+      name: $(SELF_HOSTED_POOL)
+      demands:
+        - agent.os -equals Windows_NT
     strategy:
       runOnce:
         deploy:
@@ -82,38 +109,55 @@ stages:
           - download: current
             artifact: frontend_artifact
 
-          # Deploy to Azure Static Web Apps using the deployment token (recommended)
-          - task: Bash@3
-            displayName: 'Deploy frontend to Azure Static Web App (via AZ CLI)'
+          - task: PowerShell@2
+            displayName: 'Deploy frontend to Azure Static Web App (via az cli)'
             inputs:
               targetType: 'inline'
               script: |
-                set -e
-                echo "Preparing Static Web App deployment..."
-                # Install Azure CLI (usually preinstalled)
-                az --version || curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
-                # login using service connection: we use az login via service principal credentials stored in pipeline variables
-                # See instructions below for how to create AZURE_SP_APPID / AZURE_SP_PASSWORD / AZURE_SP_TENANT pipeline variables
-                az login --service-principal -u $(AZURE_SP_APPID) -p $(AZURE_SP_PASSWORD) --tenant $(AZURE_SP_TENANT)
-                # Use the Static Web Apps deployment token (safer): push artifact content to SWA
-                if [ -z "${AZURE_STATIC_WEBAPP_API_TOKEN}" ]; then
-                  echo "ERROR: AZURE_STATIC_WEBAPP_API_TOKEN not set"
-                  exit 1
-                fi
-                # upload the built frontend contents (frontend/dist)
-                zip -r swa_payload.zip frontend/dist/*
-                # use the Static Web Apps CLI REST deploy (token-based)
-                curl -X POST "https://api.github.com/repos/OWNER/REPO" -sS > /dev/null || true
-                # Simpler: use GitHub Action normally; for Azure DevOps, prefer az staticwebapp upload (part of az cli ext)
-                az extension add --name webapp || true
-                az staticwebapp upload --name $(AZURE_STATIC_WEBAPP_NAME) --resource-group $(AZURE_RESOURCE_GROUP) --source frontend/dist --subscription $(AZURE_SUBSCRIPTION_ID)
-            env:
-              AZURE_STATIC_WEBAPP_API_TOKEN: $(AZURE_STATIC_WEBAPP_API_TOKEN)
+                Set-StrictMode -Version Latest
+                Write-Host "Checking Azure CLI..."
+                try {
+                  az --version | Out-Host
+                } catch {
+                  Write-Error "Azure CLI not found on agent. Install Azure CLI on the self-hosted agent and re-run pipeline."
+                  Exit 1
+                }
+                Write-Host "Logging in with service principal..."
+                az login --service-principal -u "$(AZURE_SP_APPID)" -p "$(AZURE_SP_PASSWORD)" --tenant "$(AZURE_SP_TENANT)"
+                az account set --subscription "$(AZURE_SUBSCRIPTION_ID)"
+                if (-not $env:AZURE_STATIC_WEBAPP_API_TOKEN -and -not "$(AZURE_STATIC_WEBAPP_API_TOKEN)") {
+                  Write-Error "AZURE_STATIC_WEBAPP_API_TOKEN not set. Please add it to pipeline variables."
+                  Exit 1
+                }
+                $distPath = "$(Pipeline.Workspace)\frontend_artifact\dist"
+                if (-not (Test-Path $distPath)) {
+                  Write-Error "Frontend build output not found at $distPath"
+                  Exit 1
+                }
+                Write-Host "Uploading frontend to Static Web App: $(AZURE_STATIC_WEBAPP_NAME)"
+                # Use az staticwebapp upload if available; otherwise use az webapp (but SWA upload is preferred)
+                try {
+                  az staticwebapp upload --name "$(AZURE_STATIC_WEBAPP_NAME)" --resource-group "$(AZURE_RESOURCE_GROUP)" --source $distPath --subscription "$(AZURE_SUBSCRIPTION_ID)"
+                } catch {
+                  Write-Warning "az staticwebapp upload failed or extension not available. Attempting fallback: zip + REST (requires token)."
+                  Push-Location $distPath
+                  $zipPath = Join-Path $env:TEMP "swa_payload.zip"
+                  if (Test-Path $zipPath) { Remove-Item $zipPath -Force }
+                  Add-Type -AssemblyName System.IO.Compression.FileSystem
+                  [System.IO.Compression.ZipFile]::CreateFromDirectory($distPath, $zipPath)
+                  Pop-Location
+                  # fallback using token: requires proper endpoint and permissions; prefer az staticwebapp upload
+                  Write-Error "Fallback not implemented. Install 'staticwebapp' az extension or ensure az staticwebapp works on agent."
+                  Exit 1
+                }
+
   - deployment: DeployBackend
     displayName: Deploy Backend to Azure App Service
     environment: 'app-service'
     pool:
-      vmImage: 'ubuntu-latest'
+      name: $(SELF_HOSTED_POOL)
+      demands:
+        - agent.os -equals Windows_NT
     strategy:
       runOnce:
         deploy:
@@ -121,10 +165,38 @@ stages:
           - download: current
             artifact: backend_artifact
 
-          - task: AzureWebApp@1
-            displayName: 'Deploy backend to Azure App Service'
+          - task: PowerShell@2
+            displayName: 'Deploy backend via az cli (zip deploy)'
             inputs:
-              azureSubscription: 'AzureServiceConnection-RM'
-              appType: 'webAppLinux'    # change to webApp for Windows hosting
-              appName: $(AZURE_WEBAPP_NAME)
-              package: $(Pipeline.Workspace)/backend_artifact/**/*
+              targetType: 'inline'
+              script: |
+                Set-StrictMode -Version Latest
+                Write-Host "Checking Azure CLI..."
+                try {
+                  az --version | Out-Host
+                } catch {
+                  Write-Error "Azure CLI not found on agent. Install Azure CLI on the self-hosted agent and re-run pipeline."
+                  Exit 1
+                }
+                Write-Host "Logging in with service principal..."
+                az login --service-principal -u "$(AZURE_SP_APPID)" -p "$(AZURE_SP_PASSWORD)" --tenant "$(AZURE_SP_TENANT)"
+                az account set --subscription "$(AZURE_SUBSCRIPTION_ID)"
+                $artifactFolder = "$(Pipeline.Workspace)\backend_artifact\."
+                if (-not (Test-Path $artifactFolder)) {
+                  Write-Error "Backend artifact folder not found at $artifactFolder"
+                  Exit 1
+                }
+                $zipPath = Join-Path $env:TEMP "backend_publish.zip"
+                if (Test-Path $zipPath) { Remove-Item $zipPath -Force }
+                Push-Location "$(Pipeline.Workspace)\backend_artifact"
+                Compress-Archive -Path * -DestinationPath $zipPath -Force
+                Pop-Location
+                Write-Host "Deploying zip to App Service $(AZURE_WEBAPP_NAME) in RG $(AZURE_RESOURCE_GROUP)"
+                az webapp deploy --resource-group "$(AZURE_RESOURCE_GROUP)" --name "$(AZURE_WEBAPP_NAME)" --src-path $zipPath --type zip
+            env:
+              AZURE_SP_APPID: $(AZURE_SP_APPID)
+              AZURE_SP_PASSWORD: $(AZURE_SP_PASSWORD)
+              AZURE_SP_TENANT: $(AZURE_SP_TENANT)
+              AZURE_SUBSCRIPTION_ID: $(AZURE_SUBSCRIPTION_ID)
+              AZURE_RESOURCE_GROUP: $(AZURE_RESOURCE_GROUP)
+              AZURE_WEBAPP_NAME: $(AZURE_WEBAPP_NAME)
