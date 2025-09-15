@@ -10,15 +10,14 @@ pr:
       - main
 
 variables:
-  # set these in pipeline variables or Azure DevOps Library (secure)
-  AZURE_STATIC_WEBAPP_API_TOKEN: $(AZURE_STATIC_WEBAPP_API_TOKEN) # deployment token for Static Web App (secure pipeline variable)
-  AZURE_WEBAPP_NAME: "your-backend-appservice-name"               # set in pipeline variables
-  AZURE_RESOURCE_GROUP: "your-resource-group"                    # set in pipeline variables
-  AZURE_STATIC_WEBAPP_NAME: "your-static-webapp-name"            # set in pipeline variables
-  AZURE_SUBSCRIPTION_ID: "your-subscription-id"                  # set in pipeline variables
-  DOTNET_VERSION: '8.0.x'                                        # change to the version you need
-  NODE_VERSION: '18.x'                                           # change if you need
-  SELF_HOSTED_POOL: 'self-hosted-pool'                           # change if your pool has a different name
+  AZURE_STATIC_WEBAPP_API_TOKEN: $(AZURE_STATIC_WEBAPP_API_TOKEN)
+  AZURE_WEBAPP_NAME: "your-backend-appservice-name"
+  AZURE_RESOURCE_GROUP: "your-resource-group"
+  AZURE_STATIC_WEBAPP_NAME: "your-static-webapp-name"
+  AZURE_SUBSCRIPTION_ID: "your-subscription-id"
+  DOTNET_VERSION: '8.0.x'
+  NODE_VERSION: '18.x'
+  SELF_HOSTED_POOL: 'Default'   # <- use the existing pool name shown in your UI
 
 stages:
 - stage: Build
@@ -115,41 +114,16 @@ stages:
               targetType: 'inline'
               script: |
                 Set-StrictMode -Version Latest
-                Write-Host "Checking Azure CLI..."
-                try {
-                  az --version | Out-Host
-                } catch {
-                  Write-Error "Azure CLI not found on agent. Install Azure CLI on the self-hosted agent and re-run pipeline."
-                  Exit 1
-                }
-                Write-Host "Logging in with service principal..."
+                az --version || Write-Error "Azure CLI missing on agent"
                 az login --service-principal -u "$(AZURE_SP_APPID)" -p "$(AZURE_SP_PASSWORD)" --tenant "$(AZURE_SP_TENANT)"
                 az account set --subscription "$(AZURE_SUBSCRIPTION_ID)"
                 if (-not $env:AZURE_STATIC_WEBAPP_API_TOKEN -and -not "$(AZURE_STATIC_WEBAPP_API_TOKEN)") {
-                  Write-Error "AZURE_STATIC_WEBAPP_API_TOKEN not set. Please add it to pipeline variables."
+                  Write-Error "AZURE_STATIC_WEBAPP_API_TOKEN not set."
                   Exit 1
                 }
                 $distPath = "$(Pipeline.Workspace)\frontend_artifact\dist"
-                if (-not (Test-Path $distPath)) {
-                  Write-Error "Frontend build output not found at $distPath"
-                  Exit 1
-                }
-                Write-Host "Uploading frontend to Static Web App: $(AZURE_STATIC_WEBAPP_NAME)"
-                # Use az staticwebapp upload if available; otherwise use az webapp (but SWA upload is preferred)
-                try {
-                  az staticwebapp upload --name "$(AZURE_STATIC_WEBAPP_NAME)" --resource-group "$(AZURE_RESOURCE_GROUP)" --source $distPath --subscription "$(AZURE_SUBSCRIPTION_ID)"
-                } catch {
-                  Write-Warning "az staticwebapp upload failed or extension not available. Attempting fallback: zip + REST (requires token)."
-                  Push-Location $distPath
-                  $zipPath = Join-Path $env:TEMP "swa_payload.zip"
-                  if (Test-Path $zipPath) { Remove-Item $zipPath -Force }
-                  Add-Type -AssemblyName System.IO.Compression.FileSystem
-                  [System.IO.Compression.ZipFile]::CreateFromDirectory($distPath, $zipPath)
-                  Pop-Location
-                  # fallback using token: requires proper endpoint and permissions; prefer az staticwebapp upload
-                  Write-Error "Fallback not implemented. Install 'staticwebapp' az extension or ensure az staticwebapp works on agent."
-                  Exit 1
-                }
+                if (-not (Test-Path $distPath)) { Write-Error "Frontend build output not found at $distPath"; Exit 1 }
+                az staticwebapp upload --name "$(AZURE_STATIC_WEBAPP_NAME)" --resource-group "$(AZURE_RESOURCE_GROUP)" --source $distPath --subscription "$(AZURE_SUBSCRIPTION_ID)"
 
   - deployment: DeployBackend
     displayName: Deploy Backend to Azure App Service
@@ -171,27 +145,14 @@ stages:
               targetType: 'inline'
               script: |
                 Set-StrictMode -Version Latest
-                Write-Host "Checking Azure CLI..."
-                try {
-                  az --version | Out-Host
-                } catch {
-                  Write-Error "Azure CLI not found on agent. Install Azure CLI on the self-hosted agent and re-run pipeline."
-                  Exit 1
-                }
-                Write-Host "Logging in with service principal..."
+                az --version || Write-Error "Azure CLI missing on agent"
                 az login --service-principal -u "$(AZURE_SP_APPID)" -p "$(AZURE_SP_PASSWORD)" --tenant "$(AZURE_SP_TENANT)"
                 az account set --subscription "$(AZURE_SUBSCRIPTION_ID)"
-                $artifactFolder = "$(Pipeline.Workspace)\backend_artifact\."
-                if (-not (Test-Path $artifactFolder)) {
-                  Write-Error "Backend artifact folder not found at $artifactFolder"
-                  Exit 1
-                }
+                Push-Location "$(Pipeline.Workspace)\backend_artifact"
                 $zipPath = Join-Path $env:TEMP "backend_publish.zip"
                 if (Test-Path $zipPath) { Remove-Item $zipPath -Force }
-                Push-Location "$(Pipeline.Workspace)\backend_artifact"
                 Compress-Archive -Path * -DestinationPath $zipPath -Force
                 Pop-Location
-                Write-Host "Deploying zip to App Service $(AZURE_WEBAPP_NAME) in RG $(AZURE_RESOURCE_GROUP)"
                 az webapp deploy --resource-group "$(AZURE_RESOURCE_GROUP)" --name "$(AZURE_WEBAPP_NAME)" --src-path $zipPath --type zip
             env:
               AZURE_SP_APPID: $(AZURE_SP_APPID)
