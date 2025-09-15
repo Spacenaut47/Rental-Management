@@ -46,7 +46,7 @@ public class PaymentService(AppDbContext db, IUnitOfWork uow, IMapper mapper, IA
     {
         var totalAsDouble = await _db.Payments
         .Where(p => p.LeaseId == leaseId)
-        .Select(p => (double)p.Amount)   // <-- cast to double so SQLite can sum
+        .Select(p => (double)p.Amount)  
         .SumAsync();
 
         return Convert.ToDecimal(totalAsDouble);

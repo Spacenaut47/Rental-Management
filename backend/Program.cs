@@ -23,11 +23,16 @@ var jwtSection = builder.Configuration.GetSection("Jwt");
 var jwtOptions = jwtSection.Get<JwtOptions>() ?? new JwtOptions();
 builder.Services.AddSingleton(jwtOptions);
 
-// 2) DbContext (SQLite)
+// 2) DbContext (SQL Server / Azure SQL)
 builder.Services.AddDbContext<AppDbContext>(opt =>
 {
-    opt.UseSqlite(builder.Configuration.GetConnectionString("DefaultConnection"));
+    opt.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection"), sqlOptions =>
+    {
+        // Retry on transient failures (recommended for Azure SQL)
+        sqlOptions.EnableRetryOnFailure(maxRetryCount: 5, maxRetryDelay: TimeSpan.FromSeconds(10), errorNumbersToAdd: null);
+    });
 });
+
 
 // 3) AutoMapper
 builder.Services.AddAutoMapper(cfg =>

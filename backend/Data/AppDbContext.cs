@@ -65,5 +65,23 @@ public class AppDbContext : DbContext
 
         modelBuilder.Entity<MaintenanceRequest>()
             .HasIndex(m => new { m.PropertyId, m.UnitId, m.TenantId });
+
+        // ----- Decimal precision for currency/amount fields -----
+        // Use decimal(18,2) as a sensible default for monetary values (adjust if you need more precision)
+        modelBuilder.Entity<Unit>()
+            .Property(u => u.Rent)
+            .HasPrecision(18, 2);
+
+        modelBuilder.Entity<Lease>()
+            .Property(l => l.MonthlyRent)
+            .HasPrecision(18, 2);
+
+        modelBuilder.Entity<Lease>()
+            .Property(l => l.SecurityDeposit)
+            .HasPrecision(18, 2);
+
+        modelBuilder.Entity<Payment>()
+            .Property(p => p.Amount)
+            .HasPrecision(18, 2);
     }
 }
