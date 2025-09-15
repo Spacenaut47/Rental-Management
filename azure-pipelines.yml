@@ -17,7 +17,7 @@ variables:
   AZURE_SUBSCRIPTION_ID: "your-subscription-id"
   DOTNET_VERSION: '8.0.x'
   NODE_VERSION: '18.x'
-  SELF_HOSTED_POOL: 'Default'   # <- use the existing pool name shown in your UI
+  SELF_HOSTED_POOL: 'win-self-hosted-1'   # <- use the existing pool name shown in your UI
 
 stages:
 - stage: Build
