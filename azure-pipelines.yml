@@ -10,154 +10,154 @@ pr:
       - main
 
 variables:
-  AZURE_STATIC_WEBAPP_API_TOKEN: $(AZURE_STATIC_WEBAPP_API_TOKEN)
+  AZURE_STATIC_WEBAPP_API_TOKEN: $4501cc37d1e6b97bcaa0e16b205bbaf8c7d7799ed2c1a3c53701e2ef3e7e5fa602-2690ff0c-1317-48e9-af34-246452674458000122107229ed00
   AZURE_WEBAPP_NAME: "your-backend-appservice-name"
-  AZURE_RESOURCE_GROUP: "your-resource-group"
-  AZURE_STATIC_WEBAPP_NAME: "your-static-webapp-name"
-  AZURE_SUBSCRIPTION_ID: "your-subscription-id"
+  AZURE_RESOURCE_GROUP: "Rental-Management"
+  AZURE_STATIC_WEBAPP_NAME: "rental-management-frontend"
+  AZURE_SUBSCRIPTION_ID: "bf912271-f73c-4e2a-b886-17c8fcdf8894"
   DOTNET_VERSION: '8.0.x'
   NODE_VERSION: '18.x'
-  SELF_HOSTED_POOL: 'self-hosted-pool'   # <- use the existing pool name shown in your UI
+  SELF_HOSTED_POOL: 'self-hosted-pool'
 
 stages:
-- stage: Build
-  displayName: Build stage
-  jobs:
-  - job: BuildBackend
-    displayName: Build & Test Backend
-    pool:
-      name: $(SELF_HOSTED_POOL)
-      demands:
-        - agent.os -equals Windows_NT
-    steps:
-    - task: UseDotNet@2
-      displayName: 'Use .NET SDK'
-      inputs:
-        packageType: 'sdk'
-        version: $(DOTNET_VERSION)
-
-    - task: PowerShell@2
-      displayName: 'dotnet restore/build/test'
-      inputs:
-        targetType: 'inline'
-        script: |
-          Set-StrictMode -Version Latest
-          Push-Location backend
-          dotnet restore
-          dotnet build --configuration Release --no-restore
-          try {
-            dotnet test --no-build --verbosity normal
-          } catch {
-            Write-Host "Tests failed (continuing pipeline)."
-          }
-          Pop-Location
-
-    - task: PowerShell@2
-      displayName: 'dotnet publish'
-      inputs:
-        targetType: 'inline'
-        script: |
-          Push-Location backend
-          dotnet publish -c Release -o "$(Build.ArtifactStagingDirectory)\backend_publish"
-          Pop-Location
-
-    - publish: $(Build.ArtifactStagingDirectory)\backend_publish
-      artifact: backend_artifact
-
-  - job: BuildFrontend
-    displayName: Build Frontend
-    pool:
-      name: $(SELF_HOSTED_POOL)
-      demands:
-        - agent.os -equals Windows_NT
-    steps:
-    - task: NodeTool@0
-      inputs:
-        versionSpec: $(NODE_VERSION)
-      displayName: 'Use Node'
-
-    - task: PowerShell@2
-      displayName: 'npm install & build (Vite)'
-      inputs:
-        targetType: 'inline'
-        script: |
-          Set-StrictMode -Version Latest
-          Push-Location frontend
-          npm ci
-          npm run build
-          Pop-Location
-
-    - publish: frontend\dist
-      artifact: frontend_artifact
-
-- stage: Deploy
-  displayName: Deploy stage
-  dependsOn: Build
-  jobs:
-  - deployment: DeployFrontend
-    displayName: Deploy Frontend to Azure Static Web Apps
-    environment: 'static-web-app'
-    pool:
-      name: $(SELF_HOSTED_POOL)
-      demands:
-        - agent.os -equals Windows_NT
-    strategy:
-      runOnce:
-        deploy:
-          steps:
-          - download: current
-            artifact: frontend_artifact
+  - stage: Build
+    displayName: Build stage
+    jobs:
+      - job: BuildBackend
+        displayName: Build & Test Backend
+        pool:
+          name: $(SELF_HOSTED_POOL)
+          demands:
+            - agent.os -equals Windows_NT
+        steps:
+          - task: UseDotNet@2
+            displayName: 'Use .NET SDK'
+            inputs:
+              packageType: 'sdk'
+              version: $(DOTNET_VERSION)
 
           - task: PowerShell@2
-            displayName: 'Deploy frontend to Azure Static Web App (via az cli)'
+            displayName: 'dotnet restore/build/test'
             inputs:
               targetType: 'inline'
               script: |
                 Set-StrictMode -Version Latest
-                az --version || Write-Error "Azure CLI missing on agent"
-                az login --service-principal -u "$(AZURE_SP_APPID)" -p "$(AZURE_SP_PASSWORD)" --tenant "$(AZURE_SP_TENANT)"
-                az account set --subscription "$(AZURE_SUBSCRIPTION_ID)"
-                if (-not $env:AZURE_STATIC_WEBAPP_API_TOKEN -and -not "$(AZURE_STATIC_WEBAPP_API_TOKEN)") {
-                  Write-Error "AZURE_STATIC_WEBAPP_API_TOKEN not set."
-                  Exit 1
+                Push-Location backend
+                dotnet restore
+                dotnet build --configuration Release --no-restore
+                try {
+                  dotnet test --no-build --verbosity normal
+                } catch {
+                  Write-Host "Tests failed (continuing pipeline)."
                 }
-                $distPath = "$(Pipeline.Workspace)\frontend_artifact\dist"
-                if (-not (Test-Path $distPath)) { Write-Error "Frontend build output not found at $distPath"; Exit 1 }
-                az staticwebapp upload --name "$(AZURE_STATIC_WEBAPP_NAME)" --resource-group "$(AZURE_RESOURCE_GROUP)" --source $distPath --subscription "$(AZURE_SUBSCRIPTION_ID)"
+                Pop-Location
 
-  - deployment: DeployBackend
-    displayName: Deploy Backend to Azure App Service
-    environment: 'app-service'
-    pool:
-      name: $(SELF_HOSTED_POOL)
-      demands:
-        - agent.os -equals Windows_NT
-    strategy:
-      runOnce:
-        deploy:
-          steps:
-          - download: current
+          - task: PowerShell@2
+            displayName: 'dotnet publish'
+            inputs:
+              targetType: 'inline'
+              script: |
+                Push-Location backend
+                dotnet publish -c Release -o "$(Build.ArtifactStagingDirectory)\backend_publish"
+                Pop-Location
+
+          - publish: $(Build.ArtifactStagingDirectory)\backend_publish
             artifact: backend_artifact
 
+      - job: BuildFrontend
+        displayName: Build Frontend
+        pool:
+          name: $(SELF_HOSTED_POOL)
+          demands:
+            - agent.os -equals Windows_NT
+        steps:
+          - task: NodeTool@0
+            inputs:
+              versionSpec: $(NODE_VERSION)
+            displayName: 'Use Node'
+
           - task: PowerShell@2
-            displayName: 'Deploy backend via az cli (zip deploy)'
+            displayName: 'npm install & build (Vite)'
             inputs:
               targetType: 'inline'
               script: |
                 Set-StrictMode -Version Latest
-                az --version || Write-Error "Azure CLI missing on agent"
-                az login --service-principal -u "$(AZURE_SP_APPID)" -p "$(AZURE_SP_PASSWORD)" --tenant "$(AZURE_SP_TENANT)"
-                az account set --subscription "$(AZURE_SUBSCRIPTION_ID)"
-                Push-Location "$(Pipeline.Workspace)\backend_artifact"
-                $zipPath = Join-Path $env:TEMP "backend_publish.zip"
-                if (Test-Path $zipPath) { Remove-Item $zipPath -Force }
-                Compress-Archive -Path * -DestinationPath $zipPath -Force
+                Push-Location frontend
+                npm ci
+                npm run build
                 Pop-Location
-                az webapp deploy --resource-group "$(AZURE_RESOURCE_GROUP)" --name "$(AZURE_WEBAPP_NAME)" --src-path $zipPath --type zip
-            env:
-              AZURE_SP_APPID: $(AZURE_SP_APPID)
-              AZURE_SP_PASSWORD: $(AZURE_SP_PASSWORD)
-              AZURE_SP_TENANT: $(AZURE_SP_TENANT)
-              AZURE_SUBSCRIPTION_ID: $(AZURE_SUBSCRIPTION_ID)
-              AZURE_RESOURCE_GROUP: $(AZURE_RESOURCE_GROUP)
-              AZURE_WEBAPP_NAME: $(AZURE_WEBAPP_NAME)
+
+          - publish: frontend\dist
+            artifact: frontend_artifact
+
+  - stage: Deploy
+    displayName: Deploy stage
+    dependsOn: Build
+    jobs:
+      - deployment: DeployFrontend
+        displayName: Deploy Frontend to Azure Static Web Apps
+        environment: 'static-web-app'
+        pool:
+          name: $(SELF_HOSTED_POOL)
+          demands:
+            - agent.os -equals Windows_NT
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - download: current
+                  artifact: frontend_artifact
+
+                - task: PowerShell@2
+                  displayName: 'Deploy frontend to Azure Static Web App (via az cli)'
+                  inputs:
+                    targetType: 'inline'
+                    script: |
+                      Set-StrictMode -Version Latest
+                      az --version || Write-Error "Azure CLI missing on agent"
+                      az login --service-principal -u "$(AZURE_SP_APPID)" -p "$(AZURE_SP_PASSWORD)" --tenant "$(AZURE_SP_TENANT)"
+                      az account set --subscription "$(AZURE_SUBSCRIPTION_ID)"
+                      if (-not $env:AZURE_STATIC_WEBAPP_API_TOKEN -and -not "$(AZURE_STATIC_WEBAPP_API_TOKEN)") {
+                        Write-Error "AZURE_STATIC_WEBAPP_API_TOKEN not set."
+                        Exit 1
+                      }
+                      $distPath = "$(Pipeline.Workspace)\frontend_artifact\dist"
+                      if (-not (Test-Path $distPath)) { Write-Error "Frontend build output not found at $distPath"; Exit 1 }
+                      az staticwebapp upload --name "$(AZURE_STATIC_WEBAPP_NAME)" --resource-group "$(AZURE_RESOURCE_GROUP)" --source $distPath --subscription "$(AZURE_SUBSCRIPTION_ID)"
+
+      - deployment: DeployBackend
+        displayName: Deploy Backend to Azure App Service
+        environment: 'app-service'
+        pool:
+          name: $(SELF_HOSTED_POOL)
+          demands:
+            - agent.os -equals Windows_NT
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - download: current
+                  artifact: backend_artifact
+
+                - task: PowerShell@2
+                  displayName: 'Deploy backend via az cli (zip deploy)'
+                  inputs:
+                    targetType: 'inline'
+                    script: |
+                      Set-StrictMode -Version Latest
+                      az --version || Write-Error "Azure CLI missing on agent"
+                      az login --service-principal -u "$(AZURE_SP_APPID)" -p "$(AZURE_SP_PASSWORD)" --tenant "$(AZURE_SP_TENANT)"
+                      az account set --subscription "$(AZURE_SUBSCRIPTION_ID)"
+                      Push-Location "$(Pipeline.Workspace)\backend_artifact"
+                      $zipPath = Join-Path $env:TEMP "backend_publish.zip"
+                      if (Test-Path $zipPath) { Remove-Item $zipPath -Force }
+                      Compress-Archive -Path * -DestinationPath $zipPath -Force
+                      Pop-Location
+                      az webapp deploy --resource-group "$(AZURE_RESOURCE_GROUP)" --name "$(AZURE_WEBAPP_NAME)" --src-path $zipPath --type zip
+                  env:
+                    AZURE_SP_APPID: $(AZURE_SP_APPID)
+                    AZURE_SP_PASSWORD: $(AZURE_SP_PASSWORD)
+                    AZURE_SP_TENANT: $(AZURE_SP_TENANT)
+                    AZURE_SUBSCRIPTION_ID: $(AZURE_SUBSCRIPTION_ID)
+                    AZURE_RESOURCE_GROUP: $(AZURE_RESOURCE_GROUP)
+                    AZURE_WEBAPP_NAME: $(AZURE_WEBAPP_NAME)
