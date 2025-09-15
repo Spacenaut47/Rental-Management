@@ -83,7 +83,7 @@ stages:
               script: |
                 Set-StrictMode -Version Latest
                 Push-Location frontend
-                npm ci
+                npm install
                 npm run build
                 Pop-Location
 
