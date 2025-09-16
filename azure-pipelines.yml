@@ -10,9 +10,8 @@ pr:
       - main
 
 variables:
-  # Secrets and sensitive values should be added to Azure DevOps Library / Pipeline variables (do NOT commit them here)
-  AZURE_STATIC_WEBAPP_API_TOKEN: $(AZURE_STATIC_WEBAPP_API_TOKEN)   # add as secret in DevOps
-  AZURE_WEBAPP_NAME: "$(AZURE_WEBAPP_NAME)"                       # set this in DevOps vars
+  # Only define static/computed values here
+  # Secrets and variables should be set in Azure DevOps Library/Pipeline Variables UI
   AZURE_RESOURCE_GROUP: "Rental-Management"
   AZURE_STATIC_WEBAPP_NAME: "rental-management-frontend"
   AZURE_SUBSCRIPTION_ID: "bf912271-f73c-4e2a-b886-17c8fcdf8894"
@@ -42,7 +41,7 @@ stages:
             inputs:
               targetType: 'inline'
               script: |
-                Set-StrictMode -Version Latest
+                $ErrorActionPreference = "Continue"
                 Push-Location backend
                 dotnet restore
                 dotnet build --configuration Release --no-restore
@@ -82,7 +81,7 @@ stages:
             inputs:
               targetType: 'inline'
               script: |
-                Set-StrictMode -Version Latest
+                $ErrorActionPreference = "Continue"
                 Push-Location frontend
                 npm install
                 npm run build
@@ -114,16 +113,22 @@ stages:
                   inputs:
                     targetType: 'inline'
                     script: |
-                      Set-StrictMode -Version Latest
-                      az --version || Write-Error "Azure CLI missing on agent"
+                      $ErrorActionPreference = "Stop"
+                      az --version
+                      if ($LASTEXITCODE -ne 0) { throw "Azure CLI missing on agent" }
+                      
                       az login --service-principal -u "$(AZURE_SP_APPID)" -p "$(AZURE_SP_PASSWORD)" --tenant "$(AZURE_SP_TENANT)"
                       az account set --subscription "$(AZURE_SUBSCRIPTION_ID)"
-                      if (-not $env:AZURE_STATIC_WEBAPP_API_TOKEN -and -not "$(AZURE_STATIC_WEBAPP_API_TOKEN)") {
-                        Write-Error "AZURE_STATIC_WEBAPP_API_TOKEN not set."
-                        Exit 1
+                      
+                      if (-not "$(AZURE_STATIC_WEBAPP_API_TOKEN)") {
+                        throw "AZURE_STATIC_WEBAPP_API_TOKEN not set."
                       }
-                      $distPath = "$(Pipeline.Workspace)\frontend_artifact\dist"
-                      if (-not (Test-Path $distPath)) { Write-Error "Frontend build output not found at $distPath"; Exit 1 }
+                      
+                      $distPath = "$(Pipeline.Workspace)\frontend_artifact"
+                      if (-not (Test-Path $distPath)) { 
+                        throw "Frontend build output not found at $distPath"
+                      }
+                      
                       az staticwebapp upload --name "$(AZURE_STATIC_WEBAPP_NAME)" --resource-group "$(AZURE_RESOURCE_GROUP)" --source $distPath --subscription "$(AZURE_SUBSCRIPTION_ID)"
 
       - deployment: DeployBackend
@@ -145,20 +150,17 @@ stages:
                   inputs:
                     targetType: 'inline'
                     script: |
-                      Set-StrictMode -Version Latest
-                      az --version || Write-Error "Azure CLI missing on agent"
+                      $ErrorActionPreference = "Stop"
+                      az --version
+                      if ($LASTEXITCODE -ne 0) { throw "Azure CLI missing on agent" }
+                      
                       az login --service-principal -u "$(AZURE_SP_APPID)" -p "$(AZURE_SP_PASSWORD)" --tenant "$(AZURE_SP_TENANT)"
                       az account set --subscription "$(AZURE_SUBSCRIPTION_ID)"
+                      
                       Push-Location "$(Pipeline.Workspace)\backend_artifact"
                       $zipPath = Join-Path $env:TEMP "backend_publish.zip"
                       if (Test-Path $zipPath) { Remove-Item $zipPath -Force }
                       Compress-Archive -Path * -DestinationPath $zipPath -Force
                       Pop-Location
+                      
                       az webapp deploy --resource-group "$(AZURE_RESOURCE_GROUP)" --name "$(AZURE_WEBAPP_NAME)" --src-path $zipPath --type zip
-                  env:
-                    AZURE_SP_APPID: $(AZURE_SP_APPID)
-                    AZURE_SP_PASSWORD: $(AZURE_SP_PASSWORD)
-                    AZURE_SP_TENANT: $(AZURE_SP_TENANT)
-                    AZURE_SUBSCRIPTION_ID: $(AZURE_SUBSCRIPTION_ID)
-                    AZURE_RESOURCE_GROUP: $(AZURE_RESOURCE_GROUP)
-                    AZURE_WEBAPP_NAME: $(AZURE_WEBAPP_NAME)
