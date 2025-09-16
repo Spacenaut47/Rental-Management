@@ -10,8 +10,9 @@ pr:
       - main
 
 variables:
-  AZURE_STATIC_WEBAPP_API_TOKEN: $4501cc37d1e6b97bcaa0e16b205bbaf8c7d7799ed2c1a3c53701e2ef3e7e5fa602-2690ff0c-1317-48e9-af34-246452674458000122107229ed00
-  AZURE_WEBAPP_NAME: "your-backend-appservice-name"
+  # Secrets and sensitive values should be added to Azure DevOps Library / Pipeline variables (do NOT commit them here)
+  AZURE_STATIC_WEBAPP_API_TOKEN: $(AZURE_STATIC_WEBAPP_API_TOKEN)   # add as secret in DevOps
+  AZURE_WEBAPP_NAME: "$(AZURE_WEBAPP_NAME)"                       # set this in DevOps vars
   AZURE_RESOURCE_GROUP: "Rental-Management"
   AZURE_STATIC_WEBAPP_NAME: "rental-management-frontend"
   AZURE_SUBSCRIPTION_ID: "bf912271-f73c-4e2a-b886-17c8fcdf8894"
