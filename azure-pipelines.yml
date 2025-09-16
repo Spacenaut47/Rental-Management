@@ -115,20 +115,34 @@ stages:
                 - download: current
                   artifact: frontend_artifact
 
-                - task: CmdLine@2
-                  displayName: 'List frontend artifact contents (cmd)'
+                # Option A: cmd listing (works on Windows)
+                # - task: CmdLine@2
+                #   displayName: 'List frontend artifact contents (cmd)'
+                #   inputs:
+                #     script: |
+                #       echo Listing downloaded frontend artifact contents...
+                #       dir "$(Pipeline.Workspace)\frontend_artifact\dist" /s
+
+                # Option B: PowerShell Core listing (use if pwsh is installed)
+                # Uncomment this block and remove the CmdLine@2 block if you prefer pwsh -NoProfile
+                - task: PowerShell@2
+                  displayName: 'List frontend artifact contents (pwsh -NoProfile)'
                   inputs:
+                    pwsh: true
+                    targetType: 'inline'
                     script: |
-                      echo Listing downloaded frontend artifact contents...
-                      dir "$(Pipeline.Workspace)\frontend_artifact" /s
+                      Write-Host "Listing downloaded frontend artifact contents..."
+                      Get-ChildItem -Path "$(Pipeline.Workspace)\frontend_artifact\dist" -Recurse
+                    options: '-NoProfile'
 
                 - task: AzureStaticWebApp@0
                   displayName: 'Deploy to Azure Static Web App'
                   inputs:
+                    # artifact folder contains built files (index.html etc.)
                     app_location: '.'
                     api_location: ''
                     output_location: '.'
-                    app_artifact_location: '$(Pipeline.Workspace)\frontend_artifact'
+                    app_artifact_location: '$(Pipeline.Workspace)\frontend_artifact\dist'
                     azure_static_web_apps_api_token: $(AZURE_STATIC_WEBAPP_API_TOKEN)
 
       - deployment: DeployBackend
