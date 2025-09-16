@@ -115,10 +115,12 @@ stages:
                 - download: current
                   artifact: frontend_artifact
 
-                - script: |
-                    echo "Listing downloaded frontend artifact contents..."
-                    dir "$(Pipeline.Workspace)\frontend_artifact" /s
-                  displayName: 'List frontend artifact contents'
+                - task: CmdLine@2
+                  displayName: 'List frontend artifact contents (cmd)'
+                  inputs:
+                    script: |
+                      echo Listing downloaded frontend artifact contents...
+                      dir "$(Pipeline.Workspace)\frontend_artifact" /s
 
                 - task: AzureStaticWebApp@0
                   displayName: 'Deploy to Azure Static Web App'
