@@ -117,6 +117,8 @@ stages:
 
                 - task: AzureStaticWebApp@0
                   displayName: 'Deploy to Azure Static Web App'
+                  env:
+                    PATH: 'C:\Program Files\Git\usr\bin;C:\Program Files\Git\bin;$(PATH)'
                   inputs:
                     app_location: '.'
                     api_location: ''
