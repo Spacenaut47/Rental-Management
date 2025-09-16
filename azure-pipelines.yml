@@ -40,10 +40,10 @@ stages:
             displayName: 'dotnet restore/build/test'
             inputs:
               targetType: 'inline'
-              pwsh: false
+              pwsh: true
               script: |
                 $ErrorActionPreference = "Continue"
-                Push-Location backend
+                Set-Location backend
                 dotnet restore
                 dotnet build --configuration Release --no-restore
                 try {
@@ -51,19 +51,19 @@ stages:
                 } catch {
                   Write-Host "Tests failed (continuing pipeline)."
                 }
-                Pop-Location
+                Set-Location ..
 
           - task: PowerShell@2
             displayName: 'dotnet publish'
             inputs:
               targetType: 'inline'
-              pwsh: false
+              pwsh: true
               script: |
-                Push-Location backend
-                dotnet publish -c Release -o "$(Build.ArtifactStagingDirectory)\backend_publish"
-                Pop-Location
+                Set-Location backend
+                dotnet publish -c Release -o "$(Build.ArtifactStagingDirectory)/backend_publish"
+                Set-Location ..
 
-          - publish: $(Build.ArtifactStagingDirectory)\backend_publish
+          - publish: $(Build.ArtifactStagingDirectory)/backend_publish
             artifact: backend_artifact
 
       - job: BuildFrontend
@@ -82,15 +82,15 @@ stages:
             displayName: 'npm install & build (Vite)'
             inputs:
               targetType: 'inline'
-              pwsh: false
+              pwsh: true
               script: |
                 $ErrorActionPreference = "Continue"
-                Push-Location frontend
+                Set-Location frontend
                 npm install
                 npm run build
-                Pop-Location
+                Set-Location ..
 
-          - publish: frontend\dist
+          - publish: frontend/dist
             artifact: frontend_artifact
 
   - stage: Deploy
@@ -115,7 +115,7 @@ stages:
                   displayName: 'Deploy frontend to Azure Static Web App (via az cli)'
                   inputs:
                     targetType: 'inline'
-                    pwsh: false
+                    pwsh: true
                     script: |
                       $ErrorActionPreference = "Stop"
                       az --version
@@ -128,7 +128,7 @@ stages:
                         throw "AZURE_STATIC_WEBAPP_API_TOKEN not set."
                       }
                       
-                      $distPath = "$(Pipeline.Workspace)\frontend_artifact\dist"
+                      $distPath = "$(Pipeline.Workspace)/frontend_artifact/dist"
                       if (-not (Test-Path $distPath)) { 
                         throw "Frontend build output not found at $distPath"
                       }
@@ -153,7 +153,7 @@ stages:
                   displayName: 'Deploy backend via az cli (zip deploy)'
                   inputs:
                     targetType: 'inline'
-                    pwsh: false
+                    pwsh: true
                     script: |
                       $ErrorActionPreference = "Stop"
                       az --version
@@ -162,10 +162,10 @@ stages:
                       az login --service-principal -u "$(AZURE_SP_APPID)" -p "$(AZURE_SP_PASSWORD)" --tenant "$(AZURE_SP_TENANT)"
                       az account set --subscription "$(AZURE_SUBSCRIPTION_ID)"
                       
-                      Push-Location "$(Pipeline.Workspace)\backend_artifact"
+                      Set-Location "$(Pipeline.Workspace)/backend_artifact"
                       $zipPath = Join-Path $env:TEMP "backend_publish.zip"
                       if (Test-Path $zipPath) { Remove-Item $zipPath -Force }
                       Compress-Archive -Path * -DestinationPath $zipPath -Force
-                      Pop-Location
+                      Set-Location ..
                       
                       az webapp deploy --resource-group "$(AZURE_RESOURCE_GROUP)" --name "$(AZURE_WEBAPP_NAME)" --src-path $zipPath --type zip
