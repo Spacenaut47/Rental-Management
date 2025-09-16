@@ -94,6 +94,20 @@ stages:
               customCommand: 'run build'
               workingDir: 'frontend'
 
+          # Create a simple manifest file inside dist so we can inspect it later via the artifact (no remote listing required)
+          - task: CmdLine@2
+            displayName: 'Create dist manifest'
+            inputs:
+              workingDirectory: 'frontend'
+              script: |
+                echo Creating dist manifest...
+                if exist dist (
+                  dir dist /s > dist\manifest.txt
+                  echo Manifest created at frontend\dist\manifest.txt
+                ) else (
+                  echo "dist folder not found" > dist_manifest_error.txt
+                )
+
           - publish: frontend/dist
             artifact: frontend_artifact
 
@@ -115,30 +129,10 @@ stages:
                 - download: current
                   artifact: frontend_artifact
 
-                # Option A: cmd listing (works on Windows)
-                # - task: CmdLine@2
-                #   displayName: 'List frontend artifact contents (cmd)'
-                #   inputs:
-                #     script: |
-                #       echo Listing downloaded frontend artifact contents...
-                #       dir "$(Pipeline.Workspace)\frontend_artifact\dist" /s
-
-                # Option B: PowerShell Core listing (use if pwsh is installed)
-                # Uncomment this block and remove the CmdLine@2 block if you prefer pwsh -NoProfile
-                - task: PowerShell@2
-                  displayName: 'List frontend artifact contents (pwsh -NoProfile)'
-                  inputs:
-                    pwsh: true
-                    targetType: 'inline'
-                    script: |
-                      Write-Host "Listing downloaded frontend artifact contents..."
-                      Get-ChildItem -Path "$(Pipeline.Workspace)\frontend_artifact\dist" -Recurse
-                    options: '-NoProfile'
-
+                # Deploy artifact (point directly to dist inside the downloaded artifact)
                 - task: AzureStaticWebApp@0
                   displayName: 'Deploy to Azure Static Web App'
                   inputs:
-                    # artifact folder contains built files (index.html etc.)
                     app_location: '.'
                     api_location: ''
                     output_location: '.'
