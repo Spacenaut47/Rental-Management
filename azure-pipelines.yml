@@ -10,8 +10,8 @@ pr:
       - main
 
 variables:
-  # Only define static/computed values here
-  # Secrets and variables should be set in Azure DevOps Library/Pipeline Variables UI
+  # Only define static/computed values here.
+  # Secrets (AZURE_SP_PASSWORD, AZURE_STATIC_WEBAPP_API_TOKEN) must be set in Azure DevOps Variable Group / Pipeline UI.
   AZURE_RESOURCE_GROUP: "Rental-Management"
   AZURE_STATIC_WEBAPP_NAME: "rental-management-frontend"
   AZURE_SUBSCRIPTION_ID: "bf912271-f73c-4e2a-b886-17c8fcdf8894"
@@ -40,6 +40,7 @@ stages:
             displayName: 'dotnet restore/build/test'
             inputs:
               targetType: 'inline'
+              pwsh: false
               script: |
                 $ErrorActionPreference = "Continue"
                 Push-Location backend
@@ -56,6 +57,7 @@ stages:
             displayName: 'dotnet publish'
             inputs:
               targetType: 'inline'
+              pwsh: false
               script: |
                 Push-Location backend
                 dotnet publish -c Release -o "$(Build.ArtifactStagingDirectory)\backend_publish"
@@ -80,6 +82,7 @@ stages:
             displayName: 'npm install & build (Vite)'
             inputs:
               targetType: 'inline'
+              pwsh: false
               script: |
                 $ErrorActionPreference = "Continue"
                 Push-Location frontend
@@ -112,6 +115,7 @@ stages:
                   displayName: 'Deploy frontend to Azure Static Web App (via az cli)'
                   inputs:
                     targetType: 'inline'
+                    pwsh: false
                     script: |
                       $ErrorActionPreference = "Stop"
                       az --version
@@ -124,7 +128,7 @@ stages:
                         throw "AZURE_STATIC_WEBAPP_API_TOKEN not set."
                       }
                       
-                      $distPath = "$(Pipeline.Workspace)\frontend_artifact"
+                      $distPath = "$(Pipeline.Workspace)\frontend_artifact\dist"
                       if (-not (Test-Path $distPath)) { 
                         throw "Frontend build output not found at $distPath"
                       }
@@ -149,6 +153,7 @@ stages:
                   displayName: 'Deploy backend via az cli (zip deploy)'
                   inputs:
                     targetType: 'inline'
+                    pwsh: false
                     script: |
                       $ErrorActionPreference = "Stop"
                       az --version
