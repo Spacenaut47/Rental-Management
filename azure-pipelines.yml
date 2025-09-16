@@ -36,32 +36,23 @@ stages:
               packageType: 'sdk'
               version: $(DOTNET_VERSION)
 
-          - task: PowerShell@2
+          - task: CmdLine@2
             displayName: 'dotnet restore/build/test'
             inputs:
-              targetType: 'inline'
-              pwsh: true
               script: |
-                $ErrorActionPreference = "Continue"
-                Set-Location backend
+                cd backend
                 dotnet restore
                 dotnet build --configuration Release --no-restore
-                try {
-                  dotnet test --no-build --verbosity normal
-                } catch {
-                  Write-Host "Tests failed (continuing pipeline)."
-                }
-                Set-Location ..
+                dotnet test --no-build --verbosity normal || echo "Tests failed (continuing pipeline)."
+                cd ..
 
-          - task: PowerShell@2
+          - task: CmdLine@2
             displayName: 'dotnet publish'
             inputs:
-              targetType: 'inline'
-              pwsh: true
               script: |
-                Set-Location backend
+                cd backend
                 dotnet publish -c Release -o "$(Build.ArtifactStagingDirectory)/backend_publish"
-                Set-Location ..
+                cd ..
 
           - publish: $(Build.ArtifactStagingDirectory)/backend_publish
             artifact: backend_artifact
@@ -78,17 +69,14 @@ stages:
               versionSpec: $(NODE_VERSION)
             displayName: 'Use Node'
 
-          - task: PowerShell@2
+          - task: CmdLine@2
             displayName: 'npm install & build (Vite)'
             inputs:
-              targetType: 'inline'
-              pwsh: true
               script: |
-                $ErrorActionPreference = "Continue"
-                Set-Location frontend
+                cd frontend
                 npm install
                 npm run build
-                Set-Location ..
+                cd ..
 
           - publish: frontend/dist
             artifact: frontend_artifact
@@ -111,29 +99,23 @@ stages:
                 - download: current
                   artifact: frontend_artifact
 
-                - task: PowerShell@2
+                - task: CmdLine@2
                   displayName: 'Deploy frontend to Azure Static Web App (via az cli)'
                   inputs:
-                    targetType: 'inline'
-                    pwsh: true
                     script: |
-                      $ErrorActionPreference = "Stop"
-                      az --version
-                      if ($LASTEXITCODE -ne 0) { throw "Azure CLI missing on agent" }
-                      
+                      az --version || (echo "Azure CLI missing on agent" && exit 1)
                       az login --service-principal -u "$(AZURE_SP_APPID)" -p "$(AZURE_SP_PASSWORD)" --tenant "$(AZURE_SP_TENANT)"
                       az account set --subscription "$(AZURE_SUBSCRIPTION_ID)"
-                      
-                      if (-not "$(AZURE_STATIC_WEBAPP_API_TOKEN)") {
-                        throw "AZURE_STATIC_WEBAPP_API_TOKEN not set."
-                      }
-                      
-                      $distPath = "$(Pipeline.Workspace)/frontend_artifact/dist"
-                      if (-not (Test-Path $distPath)) { 
-                        throw "Frontend build output not found at $distPath"
-                      }
-                      
-                      az staticwebapp upload --name "$(AZURE_STATIC_WEBAPP_NAME)" --resource-group "$(AZURE_RESOURCE_GROUP)" --source $distPath --subscription "$(AZURE_SUBSCRIPTION_ID)"
+                      if [ -z "$(AZURE_STATIC_WEBAPP_API_TOKEN)" ]; then
+                        echo "AZURE_STATIC_WEBAPP_API_TOKEN not set."
+                        exit 1
+                      fi
+                      DIST_PATH="$(Pipeline.Workspace)/frontend_artifact/dist"
+                      if [ ! -d "$DIST_PATH" ]; then
+                        echo "Frontend build output not found at $DIST_PATH"
+                        exit 1
+                      fi
+                      az staticwebapp upload --name "$(AZURE_STATIC_WEBAPP_NAME)" --resource-group "$(AZURE_RESOURCE_GROUP)" --source "$DIST_PATH" --subscription "$(AZURE_SUBSCRIPTION_ID)"
 
       - deployment: DeployBackend
         displayName: Deploy Backend to Azure App Service
@@ -149,23 +131,16 @@ stages:
                 - download: current
                   artifact: backend_artifact
 
-                - task: PowerShell@2
+                - task: CmdLine@2
                   displayName: 'Deploy backend via az cli (zip deploy)'
                   inputs:
-                    targetType: 'inline'
-                    pwsh: true
                     script: |
-                      $ErrorActionPreference = "Stop"
-                      az --version
-                      if ($LASTEXITCODE -ne 0) { throw "Azure CLI missing on agent" }
-                      
+                      az --version || (echo "Azure CLI missing on agent" && exit 1)
                       az login --service-principal -u "$(AZURE_SP_APPID)" -p "$(AZURE_SP_PASSWORD)" --tenant "$(AZURE_SP_TENANT)"
                       az account set --subscription "$(AZURE_SUBSCRIPTION_ID)"
-                      
-                      Set-Location "$(Pipeline.Workspace)/backend_artifact"
-                      $zipPath = Join-Path $env:TEMP "backend_publish.zip"
-                      if (Test-Path $zipPath) { Remove-Item $zipPath -Force }
-                      Compress-Archive -Path * -DestinationPath $zipPath -Force
-                      Set-Location ..
-                      
-                      az webapp deploy --resource-group "$(AZURE_RESOURCE_GROUP)" --name "$(AZURE_WEBAPP_NAME)" --src-path $zipPath --type zip
+                      cd "$(Pipeline.Workspace)/backend_artifact"
+                      ZIP_PATH="$TEMP/backend_publish.zip"
+                      if [ -f "$ZIP_PATH" ]; then rm -f "$ZIP_PATH"; fi
+                      powershell -Command "Compress-Archive -Path * -DestinationPath '$ZIP_PATH' -Force"
+                      cd ..
+                      az webapp deploy --resource-group "$(AZURE_RESOURCE_GROUP)" --name "$(AZURE_WEBAPP_NAME)" --src-path "$ZIP_PATH" --type zip
