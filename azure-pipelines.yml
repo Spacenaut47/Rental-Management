@@ -115,22 +115,19 @@ stages:
                 - download: current
                   artifact: frontend_artifact
 
-                - task: AzureCLI@2
-                  displayName: 'Deploy frontend to Azure Static Web App'
+                - script: |
+                    echo "Listing downloaded frontend artifact contents..."
+                    dir "$(Pipeline.Workspace)\frontend_artifact" /s
+                  displayName: 'List frontend artifact contents'
+
+                - task: AzureStaticWebApp@0
+                  displayName: 'Deploy to Azure Static Web App'
                   inputs:
-                    azureSubscription: 'AzureServiceConnection-RM'
-                    scriptType: 'bat'
-                    scriptLocation: 'inlineScript'
-                    inlineScript: |
-                      echo Checking frontend artifact...
-                      if not exist "$(Pipeline.Workspace)\frontend_artifact" (
-                        echo Frontend build output not found at $(Pipeline.Workspace)\frontend_artifact
-                        echo Available directories:
-                        dir "$(Pipeline.Workspace)" /b
-                        exit /b 1
-                      )
-                      echo Deploying frontend from: $(Pipeline.Workspace)\frontend_artifact
-                      az staticwebapp upload --name "$(AZURE_STATIC_WEBAPP_NAME)" --resource-group "$(AZURE_RESOURCE_GROUP)" --source "$(Pipeline.Workspace)\frontend_artifact" --subscription "$(AZURE_SUBSCRIPTION_ID)"
+                    app_location: '.'
+                    api_location: ''
+                    output_location: '.'
+                    app_artifact_location: '$(Pipeline.Workspace)\frontend_artifact'
+                    azure_static_web_apps_api_token: $(AZURE_STATIC_WEBAPP_API_TOKEN)
 
       - deployment: DeployBackend
         displayName: Deploy Backend to Azure App Service
