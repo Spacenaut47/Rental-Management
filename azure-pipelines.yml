@@ -14,10 +14,10 @@ variables:
   # Secrets (AZURE_SP_PASSWORD, AZURE_STATIC_WEBAPP_API_TOKEN) must be set in Azure DevOps Variable Group / Pipeline UI.
   AZURE_RESOURCE_GROUP: "Rental-Management"
   AZURE_STATIC_WEBAPP_NAME: "rental-management-frontend"
-  AZURE_WEBAPP_NAME: "your-backend-app-name"  # Add your backend app service name here
+  AZURE_WEBAPP_NAME: "rental-management-backend"  # Replace with your actual backend app service name
   AZURE_SUBSCRIPTION_ID: "bf912271-f73c-4e2a-b886-17c8fcdf8894"
-  DOTNET_VERSION: '8.0.x'
-  NODE_VERSION: '18.x'
+  DOTNET_VERSION: '8.0.414'
+  NODE_VERSION: '22.x'
   SELF_HOSTED_POOL: 'self-hosted-pool'
 
 stages:
@@ -118,14 +118,18 @@ stages:
                 - task: AzureCLI@2
                   displayName: 'Deploy frontend to Azure Static Web App'
                   inputs:
-                    azureSubscription: 'AzureServiceConnection-RM'  # Replace with your service connection name
+                    azureSubscription: 'AzureServiceConnection-RM'
                     scriptType: 'bat'
                     scriptLocation: 'inlineScript'
                     inlineScript: |
+                      echo Checking frontend artifact...
                       if not exist "$(Pipeline.Workspace)\frontend_artifact" (
-                        echo Frontend build output not found
+                        echo Frontend build output not found at $(Pipeline.Workspace)\frontend_artifact
+                        echo Available directories:
+                        dir "$(Pipeline.Workspace)" /b
                         exit /b 1
                       )
+                      echo Deploying frontend from: $(Pipeline.Workspace)\frontend_artifact
                       az staticwebapp upload --name "$(AZURE_STATIC_WEBAPP_NAME)" --resource-group "$(AZURE_RESOURCE_GROUP)" --source "$(Pipeline.Workspace)\frontend_artifact" --subscription "$(AZURE_SUBSCRIPTION_ID)"
 
       - deployment: DeployBackend
@@ -142,15 +146,21 @@ stages:
                 - download: current
                   artifact: backend_artifact
 
-                - task: AzureCLI@2
-                  displayName: 'Deploy backend via az cli (zip deploy)'
+                - task: ArchiveFiles@2
+                  displayName: 'Create backend deployment package'
                   inputs:
-                    azureSubscription: 'AzureServiceConnection-RM'  # Replace with your service connection name
+                    rootFolderOrFile: '$(Pipeline.Workspace)/backend_artifact'
+                    includeRootFolder: false
+                    archiveType: 'zip'
+                    archiveFile: '$(Pipeline.Workspace)/backend_publish.zip'
+                    replaceExistingArchive: true
+
+                - task: AzureCLI@2
+                  displayName: 'Deploy backend to Azure App Service'
+                  inputs:
+                    azureSubscription: 'AzureServiceConnection-RM'
                     scriptType: 'bat'
                     scriptLocation: 'inlineScript'
                     inlineScript: |
-                      cd /d "$(Pipeline.Workspace)\backend_artifact"
-                      set ZIP_PATH=%TEMP%\backend_publish.zip
-                      if exist "%ZIP_PATH%" del /f "%ZIP_PATH%"
-                      powershell -Command "Compress-Archive -Path * -DestinationPath '%ZIP_PATH%' -Force"
-                      az webapp deploy --resource-group "$(AZURE_RESOURCE_GROUP)" --name "$(AZURE_WEBAPP_NAME)" --src-path "%ZIP_PATH%" --type zip
+                      echo Deploying backend package: $(Pipeline.Workspace)\backend_publish.zip
+                      az webapp deploy --resource-group "$(AZURE_RESOURCE_GROUP)" --name "$(AZURE_WEBAPP_NAME)" --src-path "$(Pipeline.Workspace)\backend_publish.zip" --type zip
