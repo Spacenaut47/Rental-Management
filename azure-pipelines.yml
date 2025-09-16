@@ -14,6 +14,7 @@ variables:
   # Secrets (AZURE_SP_PASSWORD, AZURE_STATIC_WEBAPP_API_TOKEN) must be set in Azure DevOps Variable Group / Pipeline UI.
   AZURE_RESOURCE_GROUP: "Rental-Management"
   AZURE_STATIC_WEBAPP_NAME: "rental-management-frontend"
+  AZURE_WEBAPP_NAME: "your-backend-app-name"  # Add your backend app service name here
   AZURE_SUBSCRIPTION_ID: "bf912271-f73c-4e2a-b886-17c8fcdf8894"
   DOTNET_VERSION: '8.0.x'
   NODE_VERSION: '18.x'
@@ -36,23 +37,34 @@ stages:
               packageType: 'sdk'
               version: $(DOTNET_VERSION)
 
-          - task: CmdLine@2
-            displayName: 'dotnet restore/build/test'
+          - task: DotNetCoreCLI@2
+            displayName: 'dotnet restore'
             inputs:
-              script: |
-                cd backend
-                dotnet restore
-                dotnet build --configuration Release --no-restore
-                dotnet test --no-build --verbosity normal || echo "Tests failed (continuing pipeline)."
-                cd ..
+              command: 'restore'
+              projects: 'backend/**/*.csproj'
 
-          - task: CmdLine@2
+          - task: DotNetCoreCLI@2
+            displayName: 'dotnet build'
+            inputs:
+              command: 'build'
+              projects: 'backend/**/*.csproj'
+              arguments: '--configuration Release --no-restore'
+
+          - task: DotNetCoreCLI@2
+            displayName: 'dotnet test'
+            inputs:
+              command: 'test'
+              projects: 'backend/**/*Tests.csproj'
+              arguments: '--no-build --verbosity normal'
+            continueOnError: true
+
+          - task: DotNetCoreCLI@2
             displayName: 'dotnet publish'
             inputs:
-              script: |
-                cd backend
-                dotnet publish -c Release -o "$(Build.ArtifactStagingDirectory)/backend_publish"
-                cd ..
+              command: 'publish'
+              publishWebProjects: false
+              projects: 'backend/**/*.csproj'
+              arguments: '--configuration Release --output $(Build.ArtifactStagingDirectory)/backend_publish'
 
           - publish: $(Build.ArtifactStagingDirectory)/backend_publish
             artifact: backend_artifact
@@ -69,14 +81,18 @@ stages:
               versionSpec: $(NODE_VERSION)
             displayName: 'Use Node'
 
-          - task: CmdLine@2
-            displayName: 'npm install & build (Vite)'
+          - task: Npm@1
+            displayName: 'npm install'
             inputs:
-              script: |
-                cd frontend
-                npm install
-                npm run build
-                cd ..
+              command: 'install'
+              workingDir: 'frontend'
+
+          - task: Npm@1
+            displayName: 'npm run build'
+            inputs:
+              command: 'custom'
+              customCommand: 'run build'
+              workingDir: 'frontend'
 
           - publish: frontend/dist
             artifact: frontend_artifact
@@ -99,23 +115,18 @@ stages:
                 - download: current
                   artifact: frontend_artifact
 
-                - task: CmdLine@2
-                  displayName: 'Deploy frontend to Azure Static Web App (via az cli)'
+                - task: AzureCLI@2
+                  displayName: 'Deploy frontend to Azure Static Web App'
                   inputs:
-                    script: |
-                      az --version || (echo "Azure CLI missing on agent" && exit 1)
-                      az login --service-principal -u "$(AZURE_SP_APPID)" -p "$(AZURE_SP_PASSWORD)" --tenant "$(AZURE_SP_TENANT)"
-                      az account set --subscription "$(AZURE_SUBSCRIPTION_ID)"
-                      if [ -z "$(AZURE_STATIC_WEBAPP_API_TOKEN)" ]; then
-                        echo "AZURE_STATIC_WEBAPP_API_TOKEN not set."
-                        exit 1
-                      fi
-                      DIST_PATH="$(Pipeline.Workspace)/frontend_artifact/dist"
-                      if [ ! -d "$DIST_PATH" ]; then
-                        echo "Frontend build output not found at $DIST_PATH"
-                        exit 1
-                      fi
-                      az staticwebapp upload --name "$(AZURE_STATIC_WEBAPP_NAME)" --resource-group "$(AZURE_RESOURCE_GROUP)" --source "$DIST_PATH" --subscription "$(AZURE_SUBSCRIPTION_ID)"
+                    azureSubscription: 'AzureServiceConnection-RM'  # Replace with your service connection name
+                    scriptType: 'bat'
+                    scriptLocation: 'inlineScript'
+                    inlineScript: |
+                      if not exist "$(Pipeline.Workspace)\frontend_artifact" (
+                        echo Frontend build output not found
+                        exit /b 1
+                      )
+                      az staticwebapp upload --name "$(AZURE_STATIC_WEBAPP_NAME)" --resource-group "$(AZURE_RESOURCE_GROUP)" --source "$(Pipeline.Workspace)\frontend_artifact" --subscription "$(AZURE_SUBSCRIPTION_ID)"
 
       - deployment: DeployBackend
         displayName: Deploy Backend to Azure App Service
@@ -131,16 +142,15 @@ stages:
                 - download: current
                   artifact: backend_artifact
 
-                - task: CmdLine@2
+                - task: AzureCLI@2
                   displayName: 'Deploy backend via az cli (zip deploy)'
                   inputs:
-                    script: |
-                      az --version || (echo "Azure CLI missing on agent" && exit 1)
-                      az login --service-principal -u "$(AZURE_SP_APPID)" -p "$(AZURE_SP_PASSWORD)" --tenant "$(AZURE_SP_TENANT)"
-                      az account set --subscription "$(AZURE_SUBSCRIPTION_ID)"
-                      cd "$(Pipeline.Workspace)/backend_artifact"
-                      ZIP_PATH="$TEMP/backend_publish.zip"
-                      if [ -f "$ZIP_PATH" ]; then rm -f "$ZIP_PATH"; fi
-                      powershell -Command "Compress-Archive -Path * -DestinationPath '$ZIP_PATH' -Force"
-                      cd ..
-                      az webapp deploy --resource-group "$(AZURE_RESOURCE_GROUP)" --name "$(AZURE_WEBAPP_NAME)" --src-path "$ZIP_PATH" --type zip
+                    azureSubscription: 'AzureServiceConnection-RM'  # Replace with your service connection name
+                    scriptType: 'bat'
+                    scriptLocation: 'inlineScript'
+                    inlineScript: |
+                      cd /d "$(Pipeline.Workspace)\backend_artifact"
+                      set ZIP_PATH=%TEMP%\backend_publish.zip
+                      if exist "%ZIP_PATH%" del /f "%ZIP_PATH%"
+                      powershell -Command "Compress-Archive -Path * -DestinationPath '%ZIP_PATH%' -Force"
+                      az webapp deploy --resource-group "$(AZURE_RESOURCE_GROUP)" --name "$(AZURE_WEBAPP_NAME)" --src-path "%ZIP_PATH%" --type zip
