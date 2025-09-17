@@ -119,16 +119,13 @@ stages:
 
                 - task: AzureStaticWebApp@0
                   displayName: 'Deploy to Azure Static Web App'
-                  env:
-                    PATH: 'C:\Program Files\Git\usr\bin;C:\Program Files\Git\bin;$(PATH)'
                   inputs:
-                    # Point directly to the downloaded artifact location
-                    app_location: '$(Pipeline.Workspace)/frontend_artifact'
+                    app_location: '.'
                     api_location: ''
-                    output_location: ''
-                    # Remove this line as we're pointing directly to the built files
-                    # app_artifact_location: '$(Pipeline.Workspace)\frontend_artifact\dist'
+                    output_location: '.'
+                    skip_app_build: true
                     azure_static_web_apps_api_token: $(AZURE_STATIC_WEBAPP_API_TOKEN)
+                  workingDirectory: '$(Pipeline.Workspace)/frontend_artifact'
 
       - deployment: DeployBackend
         displayName: Deploy Backend to Azure App Service
