@@ -117,29 +117,39 @@ stages:
                 - download: current
                   artifact: frontend_artifact
 
-                # Create zip file using built-in Windows tar command
-                - task: CmdLine@2
+                # Use ArchiveFiles task instead of PowerShell/CmdLine
+                - task: ArchiveFiles@2
                   displayName: 'Create deployment zip'
                   inputs:
-                    script: |
-                      cd "$(Pipeline.Workspace)\frontend_artifact"
-                      tar -a -cf ..\frontend-deploy.zip *
-                      echo Zip file created successfully
-                      dir ..\frontend-deploy.zip
+                    rootFolderOrFile: '$(Pipeline.Workspace)/frontend_artifact'
+                    includeRootFolder: false
+                    archiveType: 'zip'
+                    archiveFile: '$(Pipeline.Workspace)/frontend-deploy.zip'
+                    replaceExistingArchive: true
 
-                # Deploy using curl
-                - task: CmdLine@2
+                # Create the batch file inline first
+                - task: Bash@3
+                  displayName: 'Create deploy batch file'
+                  inputs:
+                    targetType: 'inline'
+                    script: |
+                      cat > deploy.bat << 'EOF'
+                      @echo off
+                      set WORKSPACE=%1
+                      set WEBAPP_NAME=%2  
+                      set API_TOKEN=%3
+                      
+                      echo Deploying to Static Web App...
+                      curl -X POST -H "Content-Type: application/zip" -H "Authorization: Bearer %API_TOKEN%" --data-binary "@%WORKSPACE%\frontend-deploy.zip" "https://%WEBAPP_NAME%.azurestaticapps.net/api/zipdeploy" -v
+                      EOF
+
+                # Use the batch file
+                - task: BatchScript@1
                   displayName: 'Deploy to Azure Static Web App'
                   inputs:
-                    script: |
-                      cd "$(Pipeline.Workspace)"
-                      echo Deploying zip file to Static Web App...
-                      curl -X POST ^
-                        -H "Content-Type: application/zip" ^
-                        -H "Authorization: Bearer $(AZURE_STATIC_WEBAPP_API_TOKEN)" ^
-                        --data-binary "@frontend-deploy.zip" ^
-                        "https://$(AZURE_STATIC_WEBAPP_NAME).azurestaticapps.net/api/zipdeploy" ^
-                        -v
+                    filename: 'deploy.bat'
+                    arguments: '$(Pipeline.Workspace) $(AZURE_STATIC_WEBAPP_NAME) $(AZURE_STATIC_WEBAPP_API_TOKEN)'
+                    workingFolder: '$(System.DefaultWorkingDirectory)'
 
       - deployment: DeployBackend
         displayName: Deploy Backend to Azure App Service
