@@ -117,22 +117,26 @@ stages:
                 - download: current
                   artifact: frontend_artifact
 
-                # Install Static Web Apps CLI
-                - task: PowerShell@2
-                  displayName: 'Install SWA CLI'
+                # Use Azure CLI to deploy the static files
+                - task: AzureCLI@2
+                  displayName: 'Deploy Frontend to Azure Static Web App'
                   inputs:
-                    targetType: 'inline'
-                    script: |
-                      npm install -g @azure/static-web-apps-cli
-
-                # Deploy using SWA CLI
-                - task: PowerShell@2
-                  displayName: 'Deploy to Azure Static Web App using SWA CLI'
-                  inputs:
-                    targetType: 'inline'
-                    script: |
-                      $env:SWA_CLI_DEPLOYMENT_TOKEN = "$(AZURE_STATIC_WEBAPP_API_TOKEN)"
-                      swa deploy "$(Pipeline.Workspace)/frontend_artifact" --deployment-token $env:SWA_CLI_DEPLOYMENT_TOKEN --verbose
+                    azureSubscription: 'AzureServiceConnection-RM'
+                    scriptType: 'batch'
+                    scriptLocation: 'inlineScript'
+                    inlineScript: |
+                      echo "Deploying static files..."
+                      cd "$(Pipeline.Workspace)\frontend_artifact"
+                      
+                      REM Install the staticwebapp extension if not already installed
+                      az extension add --name staticwebapp --allow-preview true --yes
+                      
+                      REM Deploy using the staticwebapp CLI
+                      az staticwebapp environment create ^
+                        --name "$(AZURE_STATIC_WEBAPP_NAME)" ^
+                        --resource-group "$(AZURE_RESOURCE_GROUP)" ^
+                        --source . ^
+                        --token "$(AZURE_STATIC_WEBAPP_API_TOKEN)"
 
       - deployment: DeployBackend
         displayName: Deploy Backend to Azure App Service
