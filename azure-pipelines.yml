@@ -117,7 +117,7 @@ stages:
                 - download: current
                   artifact: frontend_artifact
 
-                # Use Azure CLI to deploy the static files
+                # Use curl to deploy directly to Static Web Apps REST API
                 - task: AzureCLI@2
                   displayName: 'Deploy Frontend to Azure Static Web App'
                   inputs:
@@ -125,18 +125,18 @@ stages:
                     scriptType: 'batch'
                     scriptLocation: 'inlineScript'
                     inlineScript: |
-                      echo "Deploying static files..."
+                      echo "Deploying static files using curl..."
                       cd "$(Pipeline.Workspace)\frontend_artifact"
                       
-                      REM Install the staticwebapp extension if not already installed
-                      az extension add --name staticwebapp --allow-preview true --yes
+                      REM Create a zip file of the content
+                      powershell -Command "Compress-Archive -Path * -DestinationPath ..\frontend-deploy.zip -Force"
                       
-                      REM Deploy using the staticwebapp CLI
-                      az staticwebapp environment create ^
-                        --name "$(AZURE_STATIC_WEBAPP_NAME)" ^
-                        --resource-group "$(AZURE_RESOURCE_GROUP)" ^
-                        --source . ^
-                        --token "$(AZURE_STATIC_WEBAPP_API_TOKEN)"
+                      REM Deploy using curl to the Static Web Apps API
+                      curl -X POST ^
+                        -H "Content-Type: application/zip" ^
+                        -H "Authorization: Bearer $(AZURE_STATIC_WEBAPP_API_TOKEN)" ^
+                        --data-binary "@..\frontend-deploy.zip" ^
+                        "https://$(AZURE_STATIC_WEBAPP_NAME).azurestaticapps.net/api/zipdeploy"
 
       - deployment: DeployBackend
         displayName: Deploy Backend to Azure App Service
