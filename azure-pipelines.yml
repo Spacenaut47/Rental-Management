@@ -95,6 +95,7 @@ stages:
               customCommand: 'run build'
               workingDir: 'frontend'
 
+          # Publish the built files directly (not the dist folder)
           - publish: frontend/dist
             artifact: frontend_artifact
 
@@ -121,10 +122,12 @@ stages:
                   env:
                     PATH: 'C:\Program Files\Git\usr\bin;C:\Program Files\Git\bin;$(PATH)'
                   inputs:
-                    app_location: '.'
+                    # Point directly to the downloaded artifact location
+                    app_location: '$(Pipeline.Workspace)/frontend_artifact'
                     api_location: ''
-                    output_location: '.'
-                    app_artifact_location: '$(Pipeline.Workspace)\frontend_artifact\dist'
+                    output_location: ''
+                    # Remove this line as we're pointing directly to the built files
+                    # app_artifact_location: '$(Pipeline.Workspace)\frontend_artifact\dist'
                     azure_static_web_apps_api_token: $(AZURE_STATIC_WEBAPP_API_TOKEN)
 
       - deployment: DeployBackend
