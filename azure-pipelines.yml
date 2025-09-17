@@ -117,26 +117,29 @@ stages:
                 - download: current
                   artifact: frontend_artifact
 
-                # Use curl to deploy directly to Static Web Apps REST API
-                - task: AzureCLI@2
-                  displayName: 'Deploy Frontend to Azure Static Web App'
+                # Create zip file using built-in Windows tar command
+                - task: CmdLine@2
+                  displayName: 'Create deployment zip'
                   inputs:
-                    azureSubscription: 'AzureServiceConnection-RM'
-                    scriptType: 'batch'
-                    scriptLocation: 'inlineScript'
-                    inlineScript: |
-                      echo "Deploying static files using curl..."
+                    script: |
                       cd "$(Pipeline.Workspace)\frontend_artifact"
-                      
-                      REM Create a zip file of the content
-                      powershell -Command "Compress-Archive -Path * -DestinationPath ..\frontend-deploy.zip -Force"
-                      
-                      REM Deploy using curl to the Static Web Apps API
+                      tar -a -cf ..\frontend-deploy.zip *
+                      echo Zip file created successfully
+                      dir ..\frontend-deploy.zip
+
+                # Deploy using curl
+                - task: CmdLine@2
+                  displayName: 'Deploy to Azure Static Web App'
+                  inputs:
+                    script: |
+                      cd "$(Pipeline.Workspace)"
+                      echo Deploying zip file to Static Web App...
                       curl -X POST ^
                         -H "Content-Type: application/zip" ^
                         -H "Authorization: Bearer $(AZURE_STATIC_WEBAPP_API_TOKEN)" ^
-                        --data-binary "@..\frontend-deploy.zip" ^
-                        "https://$(AZURE_STATIC_WEBAPP_NAME).azurestaticapps.net/api/zipdeploy"
+                        --data-binary "@frontend-deploy.zip" ^
+                        "https://$(AZURE_STATIC_WEBAPP_NAME).azurestaticapps.net/api/zipdeploy" ^
+                        -v
 
       - deployment: DeployBackend
         displayName: Deploy Backend to Azure App Service
