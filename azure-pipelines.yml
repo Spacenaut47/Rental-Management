@@ -55,7 +55,7 @@ stages:
             displayName: 'dotnet test'
             inputs:
               command: 'test'
-              projects: 'backend/**/*Tests.csproj'
+              projects: 'backend.Tests/backend.Tests.csproj'
               arguments: '--no-build --verbosity normal'
             continueOnError: true
 
