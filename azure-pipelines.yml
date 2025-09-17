@@ -117,22 +117,22 @@ stages:
                 - download: current
                   artifact: frontend_artifact
 
-                # Copy files to the expected location
-                - task: CopyFiles@2
-                  displayName: 'Copy frontend files to deployment location'
+                # Install Static Web Apps CLI
+                - task: PowerShell@2
+                  displayName: 'Install SWA CLI'
                   inputs:
-                    SourceFolder: '$(Pipeline.Workspace)/frontend_artifact'
-                    Contents: '**'
-                    TargetFolder: '$(Agent.BuildDirectory)/frontend_deploy'
+                    targetType: 'inline'
+                    script: |
+                      npm install -g @azure/static-web-apps-cli
 
-                - task: AzureStaticWebApp@0
-                  displayName: 'Deploy to Azure Static Web App'
+                # Deploy using SWA CLI
+                - task: PowerShell@2
+                  displayName: 'Deploy to Azure Static Web App using SWA CLI'
                   inputs:
-                    app_location: '$(Agent.BuildDirectory)/frontend_deploy'
-                    api_location: ''
-                    output_location: ''
-                    skip_app_build: true
-                    azure_static_web_apps_api_token: $(AZURE_STATIC_WEBAPP_API_TOKEN)
+                    targetType: 'inline'
+                    script: |
+                      $env:SWA_CLI_DEPLOYMENT_TOKEN = "$(AZURE_STATIC_WEBAPP_API_TOKEN)"
+                      swa deploy "$(Pipeline.Workspace)/frontend_artifact" --deployment-token $env:SWA_CLI_DEPLOYMENT_TOKEN --verbose
 
       - deployment: DeployBackend
         displayName: Deploy Backend to Azure App Service
