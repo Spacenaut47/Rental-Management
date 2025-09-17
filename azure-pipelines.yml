@@ -19,6 +19,7 @@ variables:
   DOTNET_VERSION: '8.0.414'
   NODE_VERSION: '22.x'
   SELF_HOSTED_POOL: 'self-hosted-pool'
+  AZURE_STATIC_WEBAPP_API_TOKEN : '4501cc37d1e6b97bcaa0e16b205bbaf8c7d7799ed2c1a3c53701e2ef3e7e5fa602-2690ff0c-1317-48e9-af34-246452674458000122107229ed00'
 
 stages:
   - stage: Build
