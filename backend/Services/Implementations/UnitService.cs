@@ -1,6 +1,5 @@
 using AutoMapper;
 using AutoMapper.QueryableExtensions;
-using backend.Data;
 using backend.Domain.Entities;
 using backend.Dtos.Units;
 using backend.Repositories.Interfaces;
@@ -9,23 +8,30 @@ using Microsoft.EntityFrameworkCore;
 
 namespace backend.Services.Implementations;
 
-public class UnitService(AppDbContext db, IUnitOfWork uow, IMapper mapper, IAuditLogService audit) : IUnitService
+public class UnitService : IUnitService
 {
-    private readonly AppDbContext _db = db;
-    private readonly IUnitOfWork _uow = uow;
-    private readonly IMapper _mapper = mapper;
-    private readonly IAuditLogService _audit = audit;
+    private readonly IUnitOfWork _uow;
+    private readonly IMapper _mapper;
+    private readonly IAuditLogService _audit;
+
+    public UnitService(IUnitOfWork uow, IMapper mapper, IAuditLogService audit)
+    {
+        _uow = uow ?? throw new ArgumentNullException(nameof(uow));
+        _mapper = mapper ?? throw new ArgumentNullException(nameof(mapper));
+        _audit = audit ?? throw new ArgumentNullException(nameof(audit));
+    }
 
     public async Task<IEnumerable<UnitReadDto>> GetAllAsync(int? propertyId = null)
     {
-        var query = _db.Units.AsNoTracking();
-        if (propertyId.HasValue) query = query.Where(u => u.PropertyId == propertyId.Value);
+        var query = _uow.Units.Query().AsNoTracking();
+        if (propertyId.HasValue)
+            query = query.Where(u => u.PropertyId == propertyId.Value);
         return await query.ProjectTo<UnitReadDto>(_mapper.ConfigurationProvider).ToListAsync();
     }
 
     public async Task<UnitReadDto?> GetByIdAsync(int id)
     {
-        return await _db.Units
+        return await _uow.Units.Query()
             .AsNoTracking()
             .Where(u => u.Id == id)
             .ProjectTo<UnitReadDto>(_mapper.ConfigurationProvider)
@@ -35,7 +41,7 @@ public class UnitService(AppDbContext db, IUnitOfWork uow, IMapper mapper, IAudi
     public async Task<UnitReadDto> CreateAsync(UnitCreateDto dto, string actor)
     {
         // Ensure property exists
-        var propExists = await _db.Properties.AnyAsync(p => p.Id == dto.PropertyId);
+        var propExists = await _uow.Properties.Query().AnyAsync(p => p.Id == dto.PropertyId);
         if (!propExists) throw new ArgumentException("Property does not exist.");
 
         var entity = _mapper.Map<Unit>(dto);
@@ -55,7 +61,7 @@ public class UnitService(AppDbContext db, IUnitOfWork uow, IMapper mapper, IAudi
         // If PropertyId is changed, ensure the new property exists
         if (dto.PropertyId != existing.PropertyId)
         {
-            var propExists = await _db.Properties.AnyAsync(p => p.Id == dto.PropertyId);
+            var propExists = await _uow.Properties.Query().AnyAsync(p => p.Id == dto.PropertyId);
             if (!propExists) throw new ArgumentException("Property does not exist.");
         }
 

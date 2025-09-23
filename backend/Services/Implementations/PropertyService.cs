@@ -1,6 +1,5 @@
 using AutoMapper;
 using AutoMapper.QueryableExtensions;
-using backend.Data;
 using backend.Domain.Entities;
 using backend.Dtos.Properties;
 using backend.Repositories.Interfaces;
@@ -9,15 +8,21 @@ using Microsoft.EntityFrameworkCore;
 
 namespace backend.Services.Implementations;
 
-public class PropertyService(AppDbContext db, IUnitOfWork uow, IMapper mapper) : IPropertyService
+public class PropertyService : IPropertyService
 {
-    private readonly AppDbContext _db = db;
-    private readonly IUnitOfWork _uow = uow;
-    private readonly IMapper _mapper = mapper;
+    private readonly IUnitOfWork _uow;
+    private readonly IMapper _mapper;
+
+    public PropertyService(IUnitOfWork uow, IMapper mapper)
+    {
+        _uow = uow ?? throw new ArgumentNullException(nameof(uow));
+        _mapper = mapper ?? throw new ArgumentNullException(nameof(mapper));
+    }
 
     public async Task<IEnumerable<PropertyReadDto>> GetAllAsync()
     {
-        return await _db.Properties
+        return await _uow.Properties
+            .Query()
             .AsNoTracking()
             .ProjectTo<PropertyReadDto>(_mapper.ConfigurationProvider)
             .ToListAsync();
@@ -25,7 +30,8 @@ public class PropertyService(AppDbContext db, IUnitOfWork uow, IMapper mapper) :
 
     public async Task<PropertyReadDto?> GetByIdAsync(int id)
     {
-        return await _db.Properties
+        return await _uow.Properties
+            .Query()
             .AsNoTracking()
             .Where(p => p.Id == id)
             .ProjectTo<PropertyReadDto>(_mapper.ConfigurationProvider)

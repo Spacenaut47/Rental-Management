@@ -1,5 +1,6 @@
 using backend.Security;
-using backend.Data;
+using backend.Repositories.Interfaces;
+using backend.Domain.Entities;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -11,11 +12,11 @@ namespace backend.Controllers;
 [Authorize(Policy = Policies.AdminOnly)]
 public class AdminController : ControllerBase
 {
-    private readonly AppDbContext _db;
+    private readonly IUnitOfWork _unitOfWork;
 
-    public AdminController(AppDbContext db)
+    public AdminController(IUnitOfWork unitOfWork)
     {
-        _db = db ?? throw new ArgumentNullException(nameof(db));
+        _unitOfWork = unitOfWork ?? throw new ArgumentNullException(nameof(unitOfWork));
     }
 
     [HttpGet("audit")]
@@ -24,7 +25,8 @@ public class AdminController : ControllerBase
         page = Math.Max(1, page);
         pageSize = Math.Clamp(pageSize, 1, 200);
 
-        var q = _db.AuditLogs.AsNoTracking();
+        var auditRepo = _unitOfWork.GetRepository<AuditLog>();
+        var q = auditRepo.Query().AsNoTracking();
         if (!string.IsNullOrWhiteSpace(entity)) q = q.Where(a => a.EntityName == entity);
 
         var total = await q.CountAsync();

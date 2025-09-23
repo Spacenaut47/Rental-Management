@@ -42,21 +42,25 @@ stages:
             displayName: 'dotnet restore'
             inputs:
               command: 'restore'
-              projects: 'backend/**/*.csproj'
+              projects: |
+                backend/**/*.csproj
+                backend.Tests/**/*.csproj
 
           - task: DotNetCoreCLI@2
             displayName: 'dotnet build'
             inputs:
               command: 'build'
-              projects: 'backend/**/*.csproj'
+              projects: |
+                backend/**/*.csproj
+                backend.Tests/**/*.csproj
               arguments: '--configuration Release --no-restore'
 
           - task: DotNetCoreCLI@2
             displayName: 'dotnet test'
             inputs:
               command: 'test'
-              projects: 'backend.Tests/backend.Tests.csproj'
-              arguments: '--no-build --verbosity normal'
+              projects: 'backend.Tests/**/*.csproj'
+              arguments: '--configuration Release --no-build --verbosity normal --collect:"XPlat Code Coverage"'
             continueOnError: true
 
           - task: DotNetCoreCLI@2

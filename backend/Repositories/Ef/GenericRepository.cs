@@ -15,6 +15,8 @@ public class GenericRepository<T> : IGenericRepository<T> where T : class
         _set = _context.Set<T>();
     }
 
+    public IQueryable<T> Query() => _set;
+
     public async Task<T?> GetByIdAsync(int id) => await _set.FindAsync(id);
 
     public async Task<IReadOnlyList<T>> GetAllAsync() => await _set.AsNoTracking().ToListAsync();

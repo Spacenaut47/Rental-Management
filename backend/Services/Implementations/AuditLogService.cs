@@ -1,28 +1,31 @@
-using backend.Data;
 using backend.Domain.Entities;
+using backend.Repositories.Interfaces;
 using backend.Services.Interfaces;
 
 namespace backend.Services.Implementations;
 
 public class AuditLogService : IAuditLogService
 {
-    private readonly AppDbContext _db;
+    private readonly IUnitOfWork _uow;
 
-    public AuditLogService(AppDbContext db)
+    public AuditLogService(IUnitOfWork uow)
     {
-        _db = db ?? throw new ArgumentNullException(nameof(db));
+        _uow = uow ?? throw new ArgumentNullException(nameof(uow));
     }
 
     public async Task WriteAsync(string actor, string action, string entityName, int? entityId = null, string? details = null)
     {
-        _db.AuditLogs.Add(new AuditLog
+        var auditLog = new AuditLog
         {
             Actor = actor,
             Action = action,
             EntityName = entityName,
             EntityId = entityId,
             Details = details
-        });
-        await _db.SaveChangesAsync();
+        };
+
+        // Use the AuditLog repository via UnitOfWork
+        await _uow.GetRepository<AuditLog>().AddAsync(auditLog);
+        await _uow.SaveChangesAsync();
     }
 }

@@ -1,6 +1,5 @@
 using AutoMapper;
 using AutoMapper.QueryableExtensions;
-using backend.Data;
 using backend.Domain.Entities;
 using backend.Dtos.Tenants;
 using backend.Repositories.Interfaces;
@@ -9,16 +8,22 @@ using Microsoft.EntityFrameworkCore;
 
 namespace backend.Services.Implementations;
 
-public class TenantService(AppDbContext db, IUnitOfWork uow, IMapper mapper, IAuditLogService audit) : ITenantService
+public class TenantService : ITenantService
 {
-    private readonly AppDbContext _db = db;
-    private readonly IUnitOfWork _uow = uow;
-    private readonly IMapper _mapper = mapper;
-    private readonly IAuditLogService _audit = audit;
+    private readonly IUnitOfWork _uow;
+    private readonly IMapper _mapper;
+    private readonly IAuditLogService _audit;
+
+    public TenantService(IUnitOfWork uow, IMapper mapper, IAuditLogService audit)
+    {
+        _uow = uow ?? throw new ArgumentNullException(nameof(uow));
+        _mapper = mapper ?? throw new ArgumentNullException(nameof(mapper));
+        _audit = audit ?? throw new ArgumentNullException(nameof(audit));
+    }
 
     public async Task<IEnumerable<TenantReadDto>> GetAllAsync(string? search = null)
     {
-        var q = _db.Tenants.AsNoTracking();
+        var q = _uow.GetRepository<Tenant>().Query().AsNoTracking();
         if (!string.IsNullOrWhiteSpace(search))
         {
             var s = search.Trim();
@@ -29,7 +34,7 @@ public class TenantService(AppDbContext db, IUnitOfWork uow, IMapper mapper, IAu
 
     public async Task<TenantReadDto?> GetByIdAsync(int id)
     {
-        return await _db.Tenants
+        return await _uow.GetRepository<Tenant>().Query()
             .AsNoTracking()
             .Where(t => t.Id == id)
             .ProjectTo<TenantReadDto>(_mapper.ConfigurationProvider)
@@ -38,12 +43,11 @@ public class TenantService(AppDbContext db, IUnitOfWork uow, IMapper mapper, IAu
 
     public async Task<TenantReadDto> CreateAsync(TenantCreateDto dto, string actor)
     {
-        if (await _db.Tenants.AnyAsync(t => t.Email == dto.Email))
+        var exists = await _uow.GetRepository<Tenant>().Query().AnyAsync(t => t.Email == dto.Email);
+        if (exists)
             throw new ArgumentException("A tenant with this email already exists.");
 
         var entity = _mapper.Map<Tenant>(dto);
-        
-        // Use the repository through UnitOfWork instead of calling AddAsync on UnitOfWork directly
         await _uow.GetRepository<Tenant>().AddAsync(entity);
         await _uow.SaveChangesAsync();
 
@@ -54,17 +58,18 @@ public class TenantService(AppDbContext db, IUnitOfWork uow, IMapper mapper, IAu
 
     public async Task<TenantReadDto?> UpdateAsync(int id, TenantUpdateDto dto, string actor)
     {
-        var existing = await _uow.GetRepository<Tenant>().GetByIdAsync(id);
+        var repo = _uow.GetRepository<Tenant>();
+        var existing = await repo.GetByIdAsync(id);
         if (existing is null) return null;
 
         if (!string.Equals(existing.Email, dto.Email, StringComparison.OrdinalIgnoreCase) &&
-            await _db.Tenants.AnyAsync(t => t.Email == dto.Email))
+            await repo.Query().AnyAsync(t => t.Email == dto.Email))
             throw new ArgumentException("A tenant with this email already exists.");
 
         _mapper.Map(dto, existing);
         existing.UpdatedAt = DateTime.UtcNow;
 
-        _uow.GetRepository<Tenant>().Update(existing);
+        repo.Update(existing);
         await _uow.SaveChangesAsync();
 
         await _audit.WriteAsync(actor, "Updated", nameof(Tenant), existing.Id, $"{existing.FirstName} {existing.LastName}");

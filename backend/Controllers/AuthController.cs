@@ -1,4 +1,3 @@
-using backend.Data;
 using backend.Domain.Entities;
 using backend.Dtos.Auth;
 using backend.Repositories.Interfaces;
@@ -16,7 +15,6 @@ namespace backend.Controllers;
 [Route("api/[controller]")]
 public class AuthController : ControllerBase
 {
-    private readonly AppDbContext _db;
     private readonly IUnitOfWork _uow;
     private readonly IPasswordHasher _hasher;
     private readonly ITokenService _tokenService;
@@ -24,14 +22,12 @@ public class AuthController : ControllerBase
     private readonly IValidator<LoginRequest> _loginValidator;
 
     public AuthController(
-        AppDbContext db,
         IUnitOfWork uow,
         IPasswordHasher hasher,
         ITokenService tokenService,
         IValidator<RegisterRequest> registerValidator,
         IValidator<LoginRequest> loginValidator)
     {
-        _db = db ?? throw new ArgumentNullException(nameof(db));
         _uow = uow ?? throw new ArgumentNullException(nameof(uow));
         _hasher = hasher ?? throw new ArgumentNullException(nameof(hasher));
         _tokenService = tokenService ?? throw new ArgumentNullException(nameof(tokenService));
@@ -47,10 +43,12 @@ public class AuthController : ControllerBase
         if (!validation.IsValid)
             return BadRequest(validation.Errors);
 
-        if (await _db.Users.AnyAsync(u => u.Username == request.Username))
+        var userRepo = _uow.Users;
+
+        if ((await userRepo.FindAsync(u => u.Username == request.Username)).Any())
             return Conflict(new { message = "Username already exists." });
 
-        if (await _db.Users.AnyAsync(u => u.Email == request.Email))
+        if ((await userRepo.FindAsync(u => u.Email == request.Email)).Any())
             return Conflict(new { message = "Email already exists." });
 
         _hasher.CreatePasswordHash(request.Password, out var hash, out var salt);
@@ -64,7 +62,7 @@ public class AuthController : ControllerBase
             Role = request.Role
         };
 
-        await _uow.Users.AddAsync(user);
+        await userRepo.AddAsync(user);
         await _uow.SaveChangesAsync();
 
         var (token, expires) = _tokenService.CreateAccessToken(user);
@@ -88,8 +86,9 @@ public class AuthController : ControllerBase
         if (!validation.IsValid)
             return BadRequest(validation.Errors);
 
-        var user = await _db.Users
-            .FirstOrDefaultAsync(u => u.Username == request.UsernameOrEmail || u.Email == request.UsernameOrEmail);
+        var userRepo = _uow.Users;
+        var user = (await userRepo.FindAsync(u => u.Username == request.UsernameOrEmail || u.Email == request.UsernameOrEmail))
+            .FirstOrDefault();
 
         if (user is null || !_hasher.VerifyPassword(request.Password, user.PasswordHash, user.PasswordSalt))
             return Unauthorized(new { message = "Invalid credentials." });
@@ -115,7 +114,7 @@ public class AuthController : ControllerBase
         if (string.IsNullOrWhiteSpace(idClaim) || !int.TryParse(idClaim, out var userId))
             return Unauthorized();
 
-        var user = await _db.Users.FindAsync(userId);
+        var user = await _uow.Users.GetByIdAsync(userId);
         if (user is null) return Unauthorized();
 
         return Ok(new

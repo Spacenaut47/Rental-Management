@@ -1,6 +1,5 @@
 using AutoMapper;
 using AutoMapper.QueryableExtensions;
-using backend.Data;
 using backend.Domain.Entities;
 using backend.Dtos.Maintenance;
 using backend.Repositories.Interfaces;
@@ -9,16 +8,22 @@ using Microsoft.EntityFrameworkCore;
 
 namespace backend.Services.Implementations;
 
-public class MaintenanceService(AppDbContext db, IUnitOfWork uow, IMapper mapper, IAuditLogService audit) : IMaintenanceService
+public class MaintenanceService : IMaintenanceService
 {
-    private readonly AppDbContext _db = db;
-    private readonly IUnitOfWork _uow = uow;
-    private readonly IMapper _mapper = mapper;
-    private readonly IAuditLogService _audit = audit;
+    private readonly IUnitOfWork _uow;
+    private readonly IMapper _mapper;
+    private readonly IAuditLogService _audit;
+
+    public MaintenanceService(IUnitOfWork uow, IMapper mapper, IAuditLogService audit)
+    {
+        _uow = uow ?? throw new ArgumentNullException(nameof(uow));
+        _mapper = mapper ?? throw new ArgumentNullException(nameof(mapper));
+        _audit = audit ?? throw new ArgumentNullException(nameof(audit));
+    }
 
     public async Task<IEnumerable<MaintenanceReadDto>> GetAsync(int? propertyId = null, int? unitId = null, int? tenantId = null)
     {
-        var q = _db.MaintenanceRequests.AsNoTracking();
+        var q = _uow.GetRepository<MaintenanceRequest>().Query().AsNoTracking();
         if (propertyId.HasValue) q = q.Where(m => m.PropertyId == propertyId.Value);
         if (unitId.HasValue) q = q.Where(m => m.UnitId == unitId.Value);
         if (tenantId.HasValue) q = q.Where(m => m.TenantId == tenantId.Value);
@@ -31,22 +36,32 @@ public class MaintenanceService(AppDbContext db, IUnitOfWork uow, IMapper mapper
 
     public async Task<MaintenanceReadDto?> GetByIdAsync(int id)
     {
-        return await _db.MaintenanceRequests
+        var q = _uow.GetRepository<MaintenanceRequest>().Query()
             .AsNoTracking()
-            .Where(m => m.Id == id)
-            .ProjectTo<MaintenanceReadDto>(_mapper.ConfigurationProvider)
+            .Where(m => m.Id == id);
+
+        return await q.ProjectTo<MaintenanceReadDto>(_mapper.ConfigurationProvider)
             .FirstOrDefaultAsync();
     }
 
     public async Task<MaintenanceReadDto> CreateAsync(MaintenanceCreateDto dto, string actor)
     {
         // basic referential checks
-        if (!await _db.Properties.AnyAsync(p => p.Id == dto.PropertyId))
+        var propertyExists = await _uow.GetRepository<Property>().Query().AnyAsync(p => p.Id == dto.PropertyId);
+        if (!propertyExists)
             throw new ArgumentException("Property does not exist.");
-        if (dto.UnitId.HasValue && !await _db.Units.AnyAsync(u => u.Id == dto.UnitId.Value))
-            throw new ArgumentException("Unit does not exist.");
-        if (dto.TenantId.HasValue && !await _db.Tenants.AnyAsync(t => t.Id == dto.TenantId.Value))
-            throw new ArgumentException("Tenant does not exist.");
+        if (dto.UnitId.HasValue)
+        {
+            var unitExists = await _uow.GetRepository<Unit>().Query().AnyAsync(u => u.Id == dto.UnitId.Value);
+            if (!unitExists)
+                throw new ArgumentException("Unit does not exist.");
+        }
+        if (dto.TenantId.HasValue)
+        {
+            var tenantExists = await _uow.GetRepository<Tenant>().Query().AnyAsync(t => t.Id == dto.TenantId.Value);
+            if (!tenantExists)
+                throw new ArgumentException("Tenant does not exist.");
+        }
 
         var entity = _mapper.Map<MaintenanceRequest>(dto);
         await _uow.GetRepository<MaintenanceRequest>().AddAsync(entity);
