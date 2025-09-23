@@ -117,22 +117,51 @@ stages:
                 - download: current
                   artifact: frontend_artifact
 
-                # Use ArchiveFiles task to create zip
-                - task: ArchiveFiles@2
-                  displayName: 'Create deployment zip'
+                # Option 1: Use the official Azure Static Web Apps Deploy task (RECOMMENDED)
+                - task: AzureStaticWebApp@0
+                  displayName: 'Deploy to Azure Static Web App'
                   inputs:
-                    rootFolderOrFile: '$(Pipeline.Workspace)/frontend_artifact'
-                    includeRootFolder: false
-                    archiveType: 'zip'
-                    archiveFile: '$(Pipeline.Workspace)/frontend-deploy.zip'
-                    replaceExistingArchive: true
+                    app_location: '$(Pipeline.Workspace)/frontend_artifact'
+                    skip_app_build: true
+                    azure_static_web_apps_api_token: '$(AZURE_STATIC_WEBAPP_API_TOKEN)'
 
-                # Deploy using HTTP REST call with inline PowerShell (avoiding modules)
-                - script: |
-                    @echo off
-                    echo Deploying frontend to Azure Static Web App...
-                    curl -X POST -H "Content-Type: application/zip" -H "Authorization: Bearer $(AZURE_STATIC_WEBAPP_API_TOKEN)" --data-binary "@$(Pipeline.Workspace)\frontend-deploy.zip" "https://$(AZURE_STATIC_WEBAPP_NAME).azurestaticapps.net/api/zipdeploy" -v
-                  displayName: 'Deploy to Azure Static Web App using curl'
+                # Option 2: Alternative using PowerShell with proper execution policy (if Option 1 doesn't work)
+                # Uncomment the following if you need to use curl approach
+                # - task: PowerShell@2
+                #   displayName: 'Deploy to Azure Static Web App using REST API'
+                #   inputs:
+                #     targetType: 'inline'
+                #     script: |
+                #       # Set execution policy for current session
+                #       Set-ExecutionPolicy -ExecutionPolicy Bypass -Scope Process -Force
+                #       
+                #       # Create zip file
+                #       $sourceFolder = "$(Pipeline.Workspace)/frontend_artifact"
+                #       $zipPath = "$(Pipeline.Workspace)/frontend-deploy.zip"
+                #       
+                #       # Remove existing zip if it exists
+                #       if (Test-Path $zipPath) { Remove-Item $zipPath -Force }
+                #       
+                #       # Create zip using .NET classes
+                #       Add-Type -AssemblyName System.IO.Compression.FileSystem
+                #       [System.IO.Compression.ZipFile]::CreateFromDirectory($sourceFolder, $zipPath)
+                #       
+                #       # Deploy using Invoke-RestMethod
+                #       $headers = @{
+                #           'Authorization' = 'Bearer $(AZURE_STATIC_WEBAPP_API_TOKEN)'
+                #           'Content-Type' = 'application/zip'
+                #       }
+                #       
+                #       $uri = "https://$(AZURE_STATIC_WEBAPP_NAME).azurestaticapps.net/api/zipdeploy"
+                #       
+                #       try {
+                #           $response = Invoke-RestMethod -Uri $uri -Method Post -Headers $headers -InFile $zipPath -ContentType 'application/zip'
+                #           Write-Host "Deployment successful: $response"
+                #       }
+                #       catch {
+                #           Write-Error "Deployment failed: $($_.Exception.Message)"
+                #           exit 1
+                #       }
 
       - deployment: DeployBackend
         displayName: Deploy Backend to Azure App Service
