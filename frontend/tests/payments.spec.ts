@@ -22,10 +22,6 @@ test.describe('Payments', () => {
     const lease = await leaseFixture(request, token);
 
     await uiLogin(page);
-    page.on('dialog', (dialog) => {
-      console.log('PAYMENT_DIALOG', dialog.message());
-      void dialog.accept();
-    });
     await page.goto('/payments');
     await page.selectOption('#payments-leaseId', String(lease.id));
     await page.fill('#payment-amount', '321.50');
@@ -88,11 +84,10 @@ test.describe('Payments', () => {
       data: {
         unitId: lease.unitId,
         tenantId: lease.tenantId,
-        startDateUtc: lease.startDateUtc,
-        endDateUtc: lease.endDateUtc,
+        startDateUtc: new Date(Date.now() - 30 * 86_400_000).toISOString(),
+        endDateUtc: new Date(Date.now() - 86_400_000).toISOString(),
         monthlyRent: lease.monthlyRent,
         securityDeposit: lease.securityDeposit,
-        isActive: false,
       },
     });
     expect(update.status(), await update.text()).toBe(200);
@@ -103,6 +98,25 @@ test.describe('Payments', () => {
     });
     expect(payment.status()).toBe(409);
     expect((await payment.json()).detail).toContain('inactive');
+  });
+
+  test('returns 404 for payment reads on a missing lease', async ({ request }) => {
+    const token = await apiLogin(request);
+    expect((await request.get('/api/payments/lease/999999', { headers: authHeaders(token) })).status()).toBe(404);
+    expect((await request.get('/api/payments/lease/999999/total', { headers: authHeaders(token) })).status()).toBe(404);
+  });
+
+  test('blocks deleting a lease that has payment history', async ({ request }) => {
+    const token = await apiLogin(request);
+    const lease = await leaseFixture(request, token);
+    expect((await request.post('/api/payments', {
+      headers: authHeaders(token),
+      data: { leaseId: lease.id, amount: 25, method: 1 },
+    })).status()).toBe(201);
+
+    const blocked = await request.delete(`/api/leases/${lease.id}`, { headers: authHeaders(token) });
+    expect(blocked.status()).toBe(409);
+    expect((await blocked.json()).detail).toContain('payment history');
   });
 
   test('protects payment endpoints', async ({ request }) => {

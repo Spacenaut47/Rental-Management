@@ -101,4 +101,27 @@ test.describe('Authentication', () => {
     });
     expect(response.status()).toBe(401);
   });
+
+  test('API login is case-insensitive', async ({ request }) => {
+    const username = unique('CaseUser');
+    expect((await request.post('/api/auth/register', {
+      data: { username, email: `${username}@test.local`, password: 'Strong@12345' },
+    })).status()).toBe(200);
+
+    expect((await request.post('/api/auth/login', {
+      data: { usernameOrEmail: username.toUpperCase(), password: 'Strong@12345' },
+    })).status()).toBe(200);
+  });
+
+  test('API rejects duplicate usernames regardless of case', async ({ request }) => {
+    const username = unique('DupCase');
+    const data = { username, email: `${username}@test.local`, password: 'Strong@12345' };
+    expect((await request.post('/api/auth/register', { data })).status()).toBe(200);
+
+    const duplicate = await request.post('/api/auth/register', {
+      data: { ...data, username: username.toUpperCase(), email: `${unique('other')}@test.local` },
+    });
+    expect(duplicate.status()).toBe(409);
+    expect((await duplicate.json()).message).toBe('Username already exists.');
+  });
 });

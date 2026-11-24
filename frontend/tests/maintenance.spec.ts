@@ -114,6 +114,18 @@ test.describe('Maintenance', () => {
     expect((await wrongUnit.json()).detail).toContain('does not belong');
   });
 
+  test('rejects invalid maintenance updates', async ({ request }) => {
+    const token = await apiLogin(request);
+    const property = await createProperty(request, token);
+    const item = await createMaintenance(request, token, property.id);
+
+    const response = await request.put(`/api/maintenance/${item.id}`, {
+      headers: authHeaders(token),
+      data: { title: '', priority: 99, status: 99 },
+    });
+    expect(response.status()).toBe(400);
+  });
+
   test('requires staff access for maintenance', async ({ request }) => {
     expect((await request.get('/api/maintenance')).status()).toBe(401);
     expect((await request.post('/api/maintenance', { data: {} })).status()).toBe(401);

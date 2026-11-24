@@ -117,7 +117,6 @@ test.describe('Units and leases', () => {
         endDateUtc: futureEnd(),
         monthlyRent: 2222,
         securityDeposit: 700,
-        isActive: true,
       },
     });
     expect(update.status(), await update.text()).toBe(200);
@@ -209,6 +208,23 @@ test.describe('Units and leases', () => {
 
     expect((await request.delete(`/api/units/${unit.id}`, { headers: authHeaders(token) })).status()).toBe(204);
     expect((await request.get(`/api/units/${unit.id}`, { headers: authHeaders(token) })).status()).toBe(404);
+  });
+
+  test('treats expired leases as inactive regardless of the stored flag', async ({ request }) => {
+    const token = await apiLogin(request);
+    const property = await createProperty(request, token);
+    const unit = await createUnit(request, token, property.id);
+    const tenant = await createTenant(request, token);
+    const lease = await createLease(request, token, unit.id, tenant.id, {
+      startDateUtc: new Date(Date.now() - 30 * 86_400_000).toISOString(),
+      endDateUtc: new Date(Date.now() - 86_400_000).toISOString(),
+    });
+
+    const active = await request.get(`/api/leases?unitId=${unit.id}&active=true`, { headers: authHeaders(token) });
+    expect(await active.json()).not.toEqual(expect.arrayContaining([expect.objectContaining({ id: lease.id })]));
+
+    const inactive = await request.get(`/api/leases?unitId=${unit.id}&active=false`, { headers: authHeaders(token) });
+    expect(await inactive.json()).toEqual(expect.arrayContaining([expect.objectContaining({ id: lease.id })]));
   });
 
   test('requires staff access for units and leases', async ({ request }) => {
