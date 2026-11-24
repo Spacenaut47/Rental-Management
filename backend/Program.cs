@@ -10,10 +10,10 @@ using backend.Services.Auth;
 using backend.Services.Implementations;
 using backend.Services.Interfaces;
 using FluentValidation;
-using FluentValidation.AspNetCore;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using Microsoft.OpenApi;
 using backend.Security;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -41,7 +41,6 @@ builder.Services.AddAutoMapper(cfg =>
 });
 
 // 4) FluentValidation
-builder.Services.AddFluentValidationAutoValidation();
 builder.Services.AddValidatorsFromAssemblyContaining<backend.Validators.Auth.RegisterRequestValidator>();
 
 // 5) Auth / JWT
@@ -87,25 +86,21 @@ builder.Services.AddCors(options =>
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
-    c.SwaggerDoc("v1", new() { Title = "Rental Management API", Version = "v1" });
-    var jwtSecurityScheme = new Microsoft.OpenApi.Models.OpenApiSecurityScheme
+    c.SwaggerDoc("v1", new OpenApiInfo { Title = "Rental Management API", Version = "v1" });
+
+    c.AddSecurityDefinition(JwtBearerDefaults.AuthenticationScheme, new OpenApiSecurityScheme
     {
         Scheme = "bearer",
         BearerFormat = "JWT",
         Name = "Authorization",
-        In = Microsoft.OpenApi.Models.ParameterLocation.Header,
-        Type = Microsoft.OpenApi.Models.SecuritySchemeType.Http,
-        Description = "Put **_ONLY_** your JWT Bearer token here",
-        Reference = new Microsoft.OpenApi.Models.OpenApiReference
-        {
-            Id = JwtBearerDefaults.AuthenticationScheme,
-            Type = Microsoft.OpenApi.Models.ReferenceType.SecurityScheme
-        }
-    };
-    c.AddSecurityDefinition(jwtSecurityScheme.Reference.Id, jwtSecurityScheme);
-    c.AddSecurityRequirement(new Microsoft.OpenApi.Models.OpenApiSecurityRequirement
+        In = ParameterLocation.Header,
+        Type = SecuritySchemeType.Http,
+        Description = "Put **_ONLY_** your JWT Bearer token here"
+    });
+
+    c.AddSecurityRequirement(document => new OpenApiSecurityRequirement
     {
-        { jwtSecurityScheme, Array.Empty<string>() }
+        [new OpenApiSecuritySchemeReference(JwtBearerDefaults.AuthenticationScheme, document)] = []
     });
 });
 

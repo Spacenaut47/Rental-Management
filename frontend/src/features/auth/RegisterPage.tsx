@@ -2,15 +2,8 @@
 import { useState, useMemo } from "react";
 import { useRegisterMutation } from "../../services/endpoints/authApi";
 import Button from "../../components/ui/Button";
-import type { FetchBaseQueryError } from "@reduxjs/toolkit/query";
-import type { SerializedError } from "@reduxjs/toolkit";
+import { getErrorMessage } from "../../lib/errors";
 import { useNavigate } from "react-router-dom";
-
-type ProblemDetails = {
-  title?: string;
-  detail?: string;
-  errors?: Record<string, string[]>;
-};
 
 export default function RegisterPage() {
   const [register, { isLoading, error }] = useRegisterMutation();
@@ -41,28 +34,10 @@ export default function RegisterPage() {
     return issues;
   }, [form]);
 
-  const serverErrorText = useMemo(() => {
-    if (!error) return "";
-    const e = error as FetchBaseQueryError | SerializedError;
-    if ("data" in e && e.data) {
-      const d = e.data as ProblemDetails | any[];
-      if ((d as ProblemDetails).errors) {
-        const errs = (d as ProblemDetails).errors!;
-        return Object.values(errs).flat().join("\n");
-      }
-      if (Array.isArray(d)) {
-        return d
-          .map((x: any) => x?.errorMessage ?? JSON.stringify(x))
-          .join("\n");
-      }
-      return (
-        (d as ProblemDetails).detail ||
-        (d as ProblemDetails).title ||
-        "Registration failed."
-      );
-    }
-    return "Registration failed.";
-  }, [error]);
+  const serverErrorText = useMemo(
+    () => getErrorMessage(error, "Registration failed."),
+    [error]
+  );
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();

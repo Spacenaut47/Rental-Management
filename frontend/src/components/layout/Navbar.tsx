@@ -4,7 +4,7 @@ import { useAppDispatch, useAppSelector } from "../../app/hooks";
 import { logout } from "../../features/auth/authSlice";
 
 export default function Navbar() {
-  const { user } = useAppSelector((s: any) => s.auth);
+  const { user } = useAppSelector((s) => s.auth);
   const dispatch = useAppDispatch();
   return (
     <header className="sticky top-0 z-10 border-b bg-white/80 backdrop-blur">

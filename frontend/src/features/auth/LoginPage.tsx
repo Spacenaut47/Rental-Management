@@ -5,48 +5,17 @@ import { useAppDispatch } from "../../app/hooks";
 import { setCredentials } from "./authSlice";
 import Button from "../../components/ui/Button";
 import { normalizeRole } from "../../lib/roles";
+import { getErrorMessage } from "../../lib/errors";
 import { Link, useNavigate } from "react-router-dom";
-
-type ServerProblemDetails = {
-  title?: string;
-  detail?: string;
-  errors?: Record<string, string[]>;
-};
 
 export default function LoginPage() {
   const [usernameOrEmail, setUser] = useState("admin");
   const [password, setPass] = useState("Admin@12345");
-  const [login, { isLoading, error, isError }] = useLoginMutation();
+  const [login, { isLoading }] = useLoginMutation();
   const dispatch = useAppDispatch();
   const nav = useNavigate();
 
   const [localError, setLocalError] = useState<string | null>(null);
-
-  const serverErrorText = (() => {
-    if (!isError || !error) return "";
-    const e = error as unknown;
-
-    // RTK Query's FetchBaseQueryError shape can vary. Try to normalize common shapes.
-    try {
-      const anyE = e as any;
-      const data = anyE?.data;
-
-      if (!data) {
-        // fallback to error.message or string
-        return anyE?.error?.toString?.() ?? JSON.stringify(anyE);
-      }
-
-      if (typeof data === "string") return data;
-      if (Array.isArray(data)) return data.map((x) => String(x)).join("\n");
-      if ((data as ServerProblemDetails).errors) {
-        const errs = (data as ServerProblemDetails).errors!;
-        return Object.values(errs).flat().join("\n");
-      }
-      return (data as ServerProblemDetails).detail ?? (data as ServerProblemDetails).title ?? JSON.stringify(data);
-    } catch (err) {
-      return "Login failed.";
-    }
-  })();
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -73,9 +42,7 @@ export default function LoginPage() {
       nav("/");
     } catch (err) {
       console.error("Login error:", err);
-      // prefer server-provided text if available
-      if (serverErrorText) setLocalError(serverErrorText);
-      else setLocalError("Invalid credentials or server error.");
+      setLocalError(getErrorMessage(err, "Invalid credentials or server error."));
     }
   };
 

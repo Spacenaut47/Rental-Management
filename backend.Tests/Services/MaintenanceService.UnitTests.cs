@@ -8,6 +8,7 @@ using backend.Repositories.Interfaces;
 using backend.Services.Implementations;
 using backend.Services.Interfaces;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
 namespace backend.Tests.Services
@@ -37,7 +38,7 @@ namespace backend.Tests.Services
                 cfg.CreateMap<MaintenanceRequest, MaintenanceReadDto>();
                 cfg.CreateMap<MaintenanceCreateDto, MaintenanceRequest>();
                 cfg.CreateMap<MaintenanceUpdateDto, MaintenanceRequest>();
-            });
+            }, NullLoggerFactory.Instance);
             return config.CreateMapper();
         }
 

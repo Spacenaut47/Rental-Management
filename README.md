@@ -1,7 +1,7 @@
 # Rental Management — Fullstack
 
 A fullstack rental/property management system.  
-Backend is built with ASP.NET Core, Entity Framework Core, and SQLite.  
+Backend is built with ASP.NET Core (.NET 10), Entity Framework Core, and SQL Server.  
 Frontend is built with React, TypeScript, Redux Toolkit, RTK Query, and TailwindCSS.
 
 ---
@@ -21,6 +21,14 @@ Audit logging is included for important actions, and data is validated both on t
 
 - **frontend/**  
   Contains the React + TypeScript frontend application. It includes Redux store configuration, RTK Query API slices, React components, pages for each feature, layout elements such as navbar and sidebar, and small utility libraries for authentication, role handling, and storage.
+
+---
+
+## Prerequisites
+
+- [.NET SDK 10](https://dotnet.microsoft.com/download) (the exact SDK is pinned in `global.json`)
+- [Node.js 26](https://nodejs.org/) (see `frontend/.nvmrc`; run `nvm use` in `frontend/`)
+- SQL Server instance reachable via the `DefaultConnection` connection string in `backend/appsettings.json`
 
 ---
 
@@ -75,7 +83,7 @@ Each controller corresponds to a domain (e.g. `PropertiesController`, `TenantsCo
 
 ## Database
 
-- Uses **SQLite** by default.  
+- Uses **SQL Server** by default.  
 - EF Core manages the schema and relationships.  
 - On startup, the application seeds default data including an admin account and sample records.  
 - Entities include `User`, `Property`, `Unit`, `Tenant`, `Lease`, `Payment`, and `MaintenanceRequest`.
@@ -111,5 +119,5 @@ Each controller corresponds to a domain (e.g. `PropertiesController`, `TenantsCo
 
 - Backend and frontend are decoupled but live in the same repository.  
 - The frontend communicates with the backend through a configured API base URL.  
-- SQLite is included for simplicity, but the backend can be adapted to other databases if needed.  
+- SQL Server is used by default, but the backend can be adapted to other databases if needed.  
 - JWT secret keys and configuration are set in the backend configuration files.  

@@ -1,27 +1,20 @@
 // src/pages/MaintenancePage.tsx
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import {
   useListMaintenanceQuery,
   useCreateMaintenanceMutation,
   useDeleteMaintenanceMutation,
   useUpdateMaintenanceMutation,
 } from "../services/endpoints/maintenanceApi";
+import type {
+  MaintenanceCreate,
+  MaintenanceItem,
+} from "../services/endpoints/maintenanceApi";
 import { useListPropertiesQuery } from "../services/endpoints/propertiesApi";
 import { useListUnitsQuery } from "../services/endpoints/unitsApi";
 import Button from "../components/ui/Button";
 import RoleGate from "../features/auth/RoleGate";
-
-type AnyItem = Record<string, any>;
-
-function getField<T = any>(
-  obj: AnyItem,
-  ...candidates: string[]
-): T | undefined {
-  for (const c of candidates) {
-    if (obj && typeof obj[c] !== "undefined") return obj[c] as T;
-  }
-  return undefined;
-}
+import { getErrorMessage } from "../lib/errors";
 
 export default function MaintenancePage() {
   const [filters, setFilters] = useState<{
@@ -31,54 +24,36 @@ export default function MaintenancePage() {
   const { data, isLoading, isError, refetch } =
     useListMaintenanceQuery(filters);
 
-  const { data: propsData, refetch: refetchProps } = useListPropertiesQuery();
-  const { data: unitsData, refetch: refetchUnits } =
-    useListUnitsQuery(undefined);
+  const { data: propsData } = useListPropertiesQuery();
+  const { data: unitsData } = useListUnitsQuery(undefined);
 
   const [createItem, { isLoading: creating }] = useCreateMaintenanceMutation();
   const [updateItem] = useUpdateMaintenanceMutation();
   const [deleteItem] = useDeleteMaintenanceMutation();
 
   // Local optimistic cache for created items (so they appear instantly)
-  const [optimisticItems, setOptimisticItems] = useState<AnyItem[]>([]);
+  const [optimisticItems, setOptimisticItems] = useState<MaintenanceItem[]>([]);
 
   const [form, setForm] = useState({
-    propertyId: propsData && propsData.length > 0 ? propsData[0].id : 1,
+    propertyId: 0,
     unitId: undefined as number | undefined,
     title: "",
     description: "",
     priority: 2,
   });
 
-  useEffect(() => {
-    // set default property if props load after mount
-    if (
-      propsData &&
-      propsData.length > 0 &&
-      (!form.propertyId || !propsData.some((p) => p.id === form.propertyId))
-    ) {
-      setForm((f) => ({ ...f, propertyId: propsData[0].id }));
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [propsData]);
+  const selectedPropertyId = form.propertyId || propsData?.[0]?.id || 1;
 
   const unitsForProperty = useMemo(() => {
     if (!unitsData) return [];
-    if (!form.propertyId) return unitsData;
-    return unitsData.filter((u) => u.propertyId === Number(form.propertyId));
-  }, [unitsData, form.propertyId]);
-
-  useEffect(() => {
-    refetchProps();
-    refetchUnits();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    return unitsData.filter((u) => u.propertyId === Number(selectedPropertyId));
+  }, [unitsData, selectedPropertyId]);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    const payload: any = {
-      propertyId: Number(form.propertyId),
+    const payload: MaintenanceCreate = {
+      propertyId: Number(selectedPropertyId),
       title: form.title,
       description: form.description,
       priority: Number(form.priority),
@@ -90,12 +65,7 @@ export default function MaintenancePage() {
       // push created item into optimistic cache so it shows immediately
       setOptimisticItems((cur) => {
         // avoid duplicates
-        if (
-          cur.some(
-            (it) => getField(it, "id", "Id") === getField(created, "id", "Id")
-          )
-        )
-          return cur;
+        if (cur.some((it) => it.id === created.id)) return cur;
         return [created, ...cur];
       });
       // clear form fields
@@ -104,23 +74,16 @@ export default function MaintenancePage() {
       await refetch();
     } catch (err) {
       console.error("Create maintenance failed", err);
-      const anyErr = err as any;
-      let msg = "Failed to create maintenance request.";
-      if (anyErr?.data) {
-        msg += " " + JSON.stringify(anyErr.data);
-      } else if (anyErr?.error) {
-        msg += " " + anyErr.error;
-      }
-      alert(msg);
+      alert(getErrorMessage(err, "Failed to create maintenance request."));
     }
   };
 
-  const handleMark = async (id: number, status: number, item: AnyItem) => {
+  const handleMark = async (id: number, status: number, item: MaintenanceItem) => {
     try {
       const body = {
-        title: getField(item, "title", "Title"),
-        description: getField(item, "description", "Description") ?? "",
-        priority: Number(getField(item, "priority", "Priority") ?? 2),
+        title: item.title,
+        description: item.description ?? "",
+        priority: item.priority,
         status,
       };
       await updateItem({ id, body }).unwrap();
@@ -137,9 +100,7 @@ export default function MaintenancePage() {
     try {
       await deleteItem(id).unwrap();
       // remove optimistic copy if present
-      setOptimisticItems((cur) =>
-        cur.filter((it) => getField(it, "id", "Id") !== id)
-      );
+      setOptimisticItems((cur) => cur.filter((it) => it.id !== id));
       await refetch();
     } catch (err) {
       console.error("Delete maintenance failed", err);
@@ -148,18 +109,9 @@ export default function MaintenancePage() {
   };
 
   // merge server data + optimistic items and avoid duplicates by id
-  const serverItems: AnyItem[] = Array.isArray(data)
-    ? (data as AnyItem[])
-    : (data as any)?.items ?? data ?? [];
-  const mergedById = new Map<number | string, AnyItem>();
-  (optimisticItems || []).forEach((it) => {
-    const id = getField(it, "id", "Id");
-    if (id !== undefined) mergedById.set(id, it);
-  });
-  (serverItems || []).forEach((it) => {
-    const id = getField(it, "id", "Id");
-    if (id !== undefined) mergedById.set(id, it);
-  });
+  const mergedById = new Map<number, MaintenanceItem>();
+  optimisticItems.forEach((it) => mergedById.set(it.id, it));
+  (data ?? []).forEach((it) => mergedById.set(it.id, it));
   const items = Array.from(mergedById.values());
 
   return (
@@ -374,21 +326,8 @@ export default function MaintenancePage() {
             <p className="text-red-600">Failed to load.</p>
           ) : (
             <ul className="divide-y">
-              {items.map((m: AnyItem) => {
-                const id = getField<number>(m, "id", "Id");
-                const title =
-                  getField<string>(m, "title", "Title") ?? "(no title)";
-                const priority = getField<number>(m, "priority", "Priority");
-                const status = getField<number>(m, "status", "Status");
-                const propertyId = getField<number>(
-                  m,
-                  "propertyId",
-                  "PropertyId"
-                );
-                const unitId = getField<number>(m, "unitId", "UnitId");
-                const createdAt =
-                  getField<string>(m, "createdAtUtc", "CreatedAtUtc") ??
-                  getField<string>(m, "createdAt", "CreatedAt");
+              {items.map((m) => {
+                const { id, title, priority, status, propertyId, unitId, createdAtUtc } = m;
                 return (
                   <li
                     key={id}
@@ -396,7 +335,7 @@ export default function MaintenancePage() {
                   >
                     <div>
                       <div className="font-medium">
-                        #{id} — {title}{" "}
+                        #{id} — {title || "(no title)"}{" "}
                         <span className="text-sm text-gray-500">
                           • Priority {priority} • Status {status}
                         </span>
@@ -404,8 +343,8 @@ export default function MaintenancePage() {
                       <div className="text-sm text-gray-600">
                         Property #{propertyId}
                         {unitId ? ` • Unit #${unitId}` : ""} •{" "}
-                        {createdAt
-                          ? new Date(createdAt).toLocaleString()
+                        {createdAtUtc
+                          ? new Date(createdAtUtc).toLocaleString()
                           : "unknown date"}
                       </div>
 

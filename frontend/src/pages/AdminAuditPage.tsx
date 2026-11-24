@@ -1,69 +1,19 @@
 // src/pages/AdminAuditPage.tsx
-import { useEffect, useState, useCallback } from "react";
+import { useState } from "react";
 import Button from "../components/ui/Button";
 import RoleGate from "../features/auth/RoleGate";
-import { API_BASE } from "../lib/constants";
-import { useAppSelector } from "../app/hooks";
-
-type AuditItem = {
-  id: number;
-  actor: string;
-  action: string;
-  entityName: string;
-  entityId?: number | null;
-  details?: string | null;
-  atUtc: string;
-};
-type AuditResponse = {
-  total: number;
-  page: number;
-  pageSize: number;
-  items: AuditItem[];
-};
+import { useListAuditQuery } from "../services/endpoints/adminApi";
 
 export default function AdminAuditPage() {
-  const token = useAppSelector((s) => s.auth.token);
   const [entity, setEntity] = useState("");
   const [page, setPage] = useState(1);
-  const [data, setData] = useState<AuditResponse | null>(null);
-  const [loading, setLoading] = useState(false);
   const pageSize = 20;
 
-  const load = useCallback(async (opts?: { signal?: AbortSignal }) => {
-    setLoading(true);
-    try {
-      const q = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
-      if (entity) q.set("entity", entity);
-      const headers: Record<string, string> = {};
-      if (token) headers.Authorization = `Bearer ${token}`;
-
-      const res = await fetch(`${API_BASE}/admin/audit?${q.toString()}`, {
-        headers,
-        signal: opts?.signal,
-      });
-      if (!res.ok) {
-        setData(null);
-      } else {
-        const json = await res.json();
-        setData(json);
-      }
-    } catch (err) {
-      if ((err as any)?.name === "AbortError") {
-        // aborted — ignore
-      } else {
-        console.error("Failed to load audit:", err);
-        setData(null);
-      }
-    } finally {
-      setLoading(false);
-    }
-  }, [entity, page, pageSize, token]);
-
-  useEffect(() => {
-    const ctrl = new AbortController();
-    load({ signal: ctrl.signal });
-    return () => ctrl.abort();
-  }, [load]);
+  const { data, isLoading, isError } = useListAuditQuery({
+    page,
+    pageSize,
+    entity: entity || undefined,
+  });
 
   return (
     <RoleGate allow={["Admin"]}>
@@ -80,7 +30,9 @@ export default function AdminAuditPage() {
         </div>
 
         {!data ? (
-          <p className="text-red-600">{loading ? "Loading…" : "Failed to load audit."}</p>
+          <p className="text-red-600">
+            {isLoading ? "Loading…" : isError ? "Failed to load audit." : "No audit entries."}
+          </p>
         ) : (
           <>
             <div className="rounded-2xl border bg-white p-4 shadow-sm">

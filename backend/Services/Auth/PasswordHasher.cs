@@ -11,14 +11,12 @@ public class PasswordHasher : IPasswordHasher
     public void CreatePasswordHash(string password, out byte[] hash, out byte[] salt)
     {
         salt = RandomNumberGenerator.GetBytes(SaltSize);
-        using var pbkdf2 = new Rfc2898DeriveBytes(password, salt, Iterations, HashAlgorithmName.SHA256);
-        hash = pbkdf2.GetBytes(KeySize);
+        hash = Rfc2898DeriveBytes.Pbkdf2(password, salt, Iterations, HashAlgorithmName.SHA256, KeySize);
     }
 
     public bool VerifyPassword(string password, byte[] storedHash, byte[] storedSalt)
     {
-        using var pbkdf2 = new Rfc2898DeriveBytes(password, storedSalt, Iterations, HashAlgorithmName.SHA256);
-        var computed = pbkdf2.GetBytes(KeySize);
+        var computed = Rfc2898DeriveBytes.Pbkdf2(password, storedSalt, Iterations, HashAlgorithmName.SHA256, KeySize);
         return CryptographicOperations.FixedTimeEquals(computed, storedHash);
     }
 }

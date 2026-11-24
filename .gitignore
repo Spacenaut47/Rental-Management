@@ -1,5 +1,5 @@
 # ===========================================
-# .NET 8 Web API + React TypeScript Stack
+# .NET 10 Web API + React TypeScript Stack
 # ===========================================
 
 # ===========================================
@@ -441,6 +441,8 @@ build/
 # Vite
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
+vite.config.mjs.timestamp-*
+vite.config.mts.timestamp-*
 
 # Editor directories and files
 .vscode/*
@@ -623,8 +625,8 @@ $RECYCLE.BIN/
 .idea/
 *.sublime-*
 
-# Package manager lock files (optional - uncomment if needed)
-package-lock.json
+# Package manager lock files
+# package-lock.json is committed for reproducible installs
 yarn.lock
 pnpm-lock.yaml
 

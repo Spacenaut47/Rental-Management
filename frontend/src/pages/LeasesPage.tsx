@@ -5,10 +5,15 @@ import {
   useCreateLeaseMutation,
   useDeleteLeaseMutation,
 } from "../services/endpoints/leasesApi";
+import type { Lease } from "../services/endpoints/leasesApi";
 import { useListUnitsQuery } from "../services/endpoints/unitsApi";
 import { useListTenantsQuery } from "../services/endpoints/tenantsApi";
 import Button from "../components/ui/Button";
 import RoleGate from "../features/auth/RoleGate";
+import { getErrorMessage } from "../lib/errors";
+
+const initialStartDate = new Date().toISOString();
+const initialEndDate = new Date(Date.now() + 365 * 24 * 3600 * 1000).toISOString();
 
 export default function LeasesPage() {
   const [filters, setFilters] = useState<{ unitId?: number; tenantId?: number; active?: boolean }>({});
@@ -21,13 +26,13 @@ export default function LeasesPage() {
   const [deleteLease] = useDeleteLeaseMutation();
 
   // optimistic local leases
-  const [optimisticLeases, setOptimisticLeases] = useState<any[]>([]);
+  const [optimisticLeases, setOptimisticLeases] = useState<Lease[]>([]);
 
   const [form, setForm] = useState({
     unitId: 1,
     tenantId: 1,
-    startDateUtc: new Date().toISOString(),
-    endDateUtc: new Date(Date.now() + 365 * 24 * 3600 * 1000).toISOString(),
+    startDateUtc: initialStartDate,
+    endDateUtc: initialEndDate,
     monthlyRent: 1200,
     securityDeposit: 1200,
   });
@@ -46,10 +51,7 @@ export default function LeasesPage() {
       await refetch();
     } catch (err) {
       console.error("Create lease failed", err);
-      let msg = "Failed to create lease.";
-      const anyErr = err as any;
-      if (anyErr?.data) msg += " " + JSON.stringify(anyErr.data);
-      alert(msg);
+      alert(getErrorMessage(err, "Failed to create lease."));
     }
   };
 
@@ -67,9 +69,9 @@ export default function LeasesPage() {
 
   // merge server + optimistic
   const serverLeases = data ?? [];
-  const merged = new Map<number, any>();
+  const merged = new Map<number, Lease>();
   optimisticLeases.forEach((l) => merged.set(l.id, l));
-  serverLeases.forEach((l: any) => merged.set(l.id, l));
+  serverLeases.forEach((l) => merged.set(l.id, l));
   const leases = Array.from(merged.values());
 
   const tenantName = (tenantId?: number | null) => {
@@ -159,7 +161,7 @@ export default function LeasesPage() {
           <h2 className="mb-3 text-lg font-semibold">Leases List (IDs shown)</h2>
           {isLoading ? <p>Loading...</p> : isError ? <p className="text-red-600">Failed to load leases.</p> : (
             <ul className="divide-y">
-              {leases.map((l: any) => (
+              {leases.map((l) => (
                 <li key={l.id} className="flex items-center justify-between gap-4 py-2">
                   <div>
                     <div className="font-medium">

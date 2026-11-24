@@ -1,14 +1,16 @@
 // src/pages/UnitsPage.tsx
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import {
   useListUnitsQuery,
   useCreateUnitMutation,
   useDeleteUnitMutation,
 } from "../services/endpoints/unitsApi";
+import type { Unit } from "../services/endpoints/unitsApi";
 import { useListPropertiesQuery } from "../services/endpoints/propertiesApi";
 import { useListLeasesQuery } from "../services/endpoints/leasesApi";
 import Button from "../components/ui/Button";
 import RoleGate from "../features/auth/RoleGate";
+import { getErrorMessage } from "../lib/errors";
 
 export default function UnitsPage() {
   const [propertyId, setPid] = useState<string>("");
@@ -25,7 +27,7 @@ export default function UnitsPage() {
   const [deleteUnit] = useDeleteUnitMutation();
 
   // optimistic items for newly created units
-  const [optimisticUnits, setOptimisticUnits] = useState<any[]>([]);
+  const [optimisticUnits, setOptimisticUnits] = useState<Unit[]>([]);
 
   const [form, setForm] = useState({
     propertyId: 0,
@@ -37,28 +39,19 @@ export default function UnitsPage() {
     isOccupied: false,
   });
 
-  useEffect(() => {
-    if (
-      propsData &&
-      propsData.length > 0 &&
-      (!form.propertyId || !propsData.some((p) => p.id === form.propertyId))
-    ) {
-      setForm((f) => ({ ...f, propertyId: propsData[0].id }));
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [propsData]);
+  const selectedPropertyId = form.propertyId || propsData?.[0]?.id || 0;
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!form.propertyId || !propsData?.some((p) => p.id === form.propertyId)) {
+    if (!selectedPropertyId || !propsData?.some((p) => p.id === selectedPropertyId)) {
       alert("Please select a valid Property before creating a Unit.");
       return;
     }
 
     try {
       // create unit once and wait for result
-      const created = await createUnit({ ...form, propertyId: Number(form.propertyId) }).unwrap();
+      const created = await createUnit({ ...form, propertyId: Number(selectedPropertyId) }).unwrap();
 
       // push to optimistic list (if backend list hasn't updated yet)
       setOptimisticUnits((cur) => {
@@ -74,10 +67,7 @@ export default function UnitsPage() {
       await refetchLeases();
     } catch (err) {
       console.error("Create unit failed", err);
-      let msg = "Failed to create unit.";
-      const anyErr = err as any;
-      if (anyErr?.data) msg += " " + JSON.stringify(anyErr.data);
-      alert(msg);
+      alert(getErrorMessage(err, "Failed to create unit."));
     }
   };
 
@@ -97,15 +87,15 @@ export default function UnitsPage() {
 
   // merge server + optimistic units
   const serverUnits = data ?? [];
-  const merged = new Map<number, any>();
+  const merged = new Map<number, Unit>();
   optimisticUnits.forEach((u) => merged.set(u.id, u));
-  serverUnits.forEach((u: any) => merged.set(u.id, u));
+  serverUnits.forEach((u) => merged.set(u.id, u));
   const units = Array.from(merged.values());
 
   // compute displayed occupancy using leases (active leases mean occupied)
   const leases = leasesData ?? [];
   const unitsWithComputedOccupancy = units.map((u) => {
-    const occupiedBecauseOfLease = leases.some((l: any) => l.unitId === u.id && l.isActive);
+    const occupiedBecauseOfLease = leases.some((l) => l.unitId === u.id && l.isActive);
     return { ...u, isOccupied: Boolean(u.isOccupied) || occupiedBecauseOfLease };
   });
 
@@ -145,7 +135,7 @@ export default function UnitsPage() {
                 <select
                   id="unit-prop-select"
                   className="rounded-md border p-2"
-                  value={form.propertyId}
+                  value={selectedPropertyId}
                   onChange={(e) => setForm({ ...form, propertyId: Number(e.target.value) })}
                 >
                   {propsData?.map((p) => (
@@ -154,7 +144,7 @@ export default function UnitsPage() {
                     </option>
                   ))}
                 </select>
-                <span className="text-xs text-gray-600">Selected: Property #{form.propertyId}</span>
+                <span className="text-xs text-gray-600">Selected: Property #{selectedPropertyId}</span>
               </div>
             </div>
 
@@ -196,7 +186,7 @@ export default function UnitsPage() {
           <h2 className="mb-3 text-lg font-semibold">Units List (IDs shown)</h2>
           {isLoading ? <p>Loading...</p> : isError ? <p className="text-red-600">Failed to load units.</p> : (
             <ul className="divide-y">
-              {unitsWithComputedOccupancy.map((u: any) => (
+              {unitsWithComputedOccupancy.map((u) => (
                 <li key={u.id} className="flex items-center justify-between gap-4 py-2">
                   <div>
                     <div className="font-medium">Unit #{u.id} — {u.unitNumber} • Property #{u.propertyId}</div>
