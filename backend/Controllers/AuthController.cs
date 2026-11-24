@@ -1,4 +1,5 @@
 using backend.Domain.Entities;
+using backend.Domain.Enums;
 using backend.Dtos.Auth;
 using backend.Repositories.Interfaces;
 using backend.Services.Auth;
@@ -59,7 +60,9 @@ public class AuthController : ControllerBase
             Email = request.Email,
             PasswordHash = hash,
             PasswordSalt = salt,
-            Role = request.Role
+            // Public self-registration always creates a tenant account.
+            // Privileged accounts must be provisioned by an administrator.
+            Role = RoleType.Tenant
         };
 
         await userRepo.AddAsync(user);

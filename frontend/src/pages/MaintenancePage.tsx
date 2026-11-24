@@ -20,7 +20,7 @@ export default function MaintenancePage() {
   const [filters, setFilters] = useState<{
     propertyId?: number;
     unitId?: number;
-  }>({ propertyId: 1 });
+  }>({});
   const { data, isLoading, isError, refetch } =
     useListMaintenanceQuery(filters);
 
@@ -42,7 +42,7 @@ export default function MaintenancePage() {
     priority: 2,
   });
 
-  const selectedPropertyId = form.propertyId || propsData?.[0]?.id || 1;
+  const selectedPropertyId = form.propertyId || propsData?.[0]?.id || 0;
 
   const unitsForProperty = useMemo(() => {
     if (!unitsData) return [];

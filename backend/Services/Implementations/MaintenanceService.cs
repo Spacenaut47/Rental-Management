@@ -52,9 +52,9 @@ public class MaintenanceService : IMaintenanceService
             throw new ArgumentException("Property does not exist.");
         if (dto.UnitId.HasValue)
         {
-            var unitExists = await _uow.GetRepository<Unit>().Query().AnyAsync(u => u.Id == dto.UnitId.Value);
-            if (!unitExists)
-                throw new ArgumentException("Unit does not exist.");
+            var unit = await _uow.GetRepository<Unit>().Query().FirstOrDefaultAsync(u => u.Id == dto.UnitId.Value);
+            if (unit is null) throw new ArgumentException("Unit does not exist.");
+            if (unit.PropertyId != dto.PropertyId) throw new ArgumentException("Unit does not belong to the specified property.");
         }
         if (dto.TenantId.HasValue)
         {

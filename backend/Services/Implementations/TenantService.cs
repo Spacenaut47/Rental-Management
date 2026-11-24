@@ -83,11 +83,15 @@ public class TenantService : ITenantService
         var existing = await repo.GetByIdAsync(id);
         if (existing is null) return false;
 
+        var hasLeases = await _uow.GetRepository<Lease>().Query().AnyAsync(l => l.TenantId == id);
+        if (hasLeases) throw new InvalidOperationException("Cannot delete a tenant that is referenced by leases.");
+
+        var hasMaintenance = await _uow.GetRepository<MaintenanceRequest>().Query().AnyAsync(m => m.TenantId == id);
+        if (hasMaintenance) throw new InvalidOperationException("Cannot delete a tenant with maintenance requests.");
+
         repo.Remove(existing);
         await _uow.SaveChangesAsync();
-
         await _audit.WriteAsync(actor, "Deleted", nameof(Tenant), id, $"{existing.FirstName} {existing.LastName}");
-
         return true;
     }
 }

@@ -12,4 +12,5 @@ public class Unit
     public bool IsOccupied { get; set; }
 
     public Property? Property { get; set; }
+    public ICollection<Lease> Leases { get; set; } = new List<Lease>();
 }

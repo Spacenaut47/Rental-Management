@@ -8,6 +8,7 @@ import {
 import { useListLeasesQuery } from "../services/endpoints/leasesApi";
 import Button from "../components/ui/Button";
 import RoleGate from "../features/auth/RoleGate";
+import { getErrorMessage } from "../lib/errors";
 
 function methodName(method: number | string | undefined | null) {
   // Accept numbers or numeric strings
@@ -29,11 +30,11 @@ function methodName(method: number | string | undefined | null) {
 }
 
 export default function PaymentsPage() {
-  const [leaseId, setLeaseId] = useState(1);
-  const { data, isLoading, isError, refetch } = useListPaymentsForLeaseQuery(leaseId);
-  const { data: total } = useTotalPaidForLeaseQuery(leaseId);
-
+  const [leaseId, setLeaseId] = useState(0);
   const { data: leasesData } = useListLeasesQuery(undefined);
+  const selectedLeaseId = leaseId || leasesData?.[0]?.id || 0;
+  const { data, isLoading, isError, refetch } = useListPaymentsForLeaseQuery(selectedLeaseId, { skip: !selectedLeaseId });
+  const { data: total } = useTotalPaidForLeaseQuery(selectedLeaseId, { skip: !selectedLeaseId });
 
   const [createPayment, { isLoading: creating }] = useCreatePaymentMutation();
   const [form, setForm] = useState({
@@ -45,13 +46,14 @@ export default function PaymentsPage() {
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!selectedLeaseId) return;
     try {
-      await createPayment({ leaseId, ...form }).unwrap();
+      await createPayment({ leaseId: selectedLeaseId, ...form }).unwrap();
       setForm({ ...form, reference: "", notes: "" });
       await refetch();
     } catch (err) {
       console.error("Create payment failed", err);
-      alert("Failed to record payment.");
+      alert(getErrorMessage(err, "Failed to record payment."));
     }
   };
 
@@ -63,7 +65,7 @@ export default function PaymentsPage() {
           <div className="flex flex-col">
             <label htmlFor="payments-leaseId" className="text-xs font-medium text-gray-600">Lease ID</label>
             <div className="flex gap-2">
-              <select id="payments-leaseId" className="w-56 rounded-md border p-2" value={leaseId} onChange={(e)=>setLeaseId(Number(e.target.value))}>
+              <select id="payments-leaseId" className="w-56 rounded-md border p-2" value={selectedLeaseId} onChange={(e)=>setLeaseId(Number(e.target.value))}>
                 {leasesData?.map(l => (<option key={l.id} value={l.id}>Lease #{l.id} — Unit #{l.unitId} • Tenant #{l.tenantId}</option>))}
               </select>
               <Button onClick={()=>refetch()} aria-label="Load payments">Load</Button>
@@ -76,7 +78,7 @@ export default function PaymentsPage() {
         <RoleGate allow={["Admin","Manager"]}>
           <form onSubmit={submit} className="rounded-2xl border bg-white p-4 shadow-sm">
             <h2 className="mb-3 text-lg font-semibold">Add Payment</h2>
-            <div className="mb-2 text-sm text-gray-600">Selected Lease: #{leaseId}</div>
+            <div className="mb-2 text-sm text-gray-600">Selected Lease: #{selectedLeaseId}</div>
             <div className="grid grid-cols-2 gap-3">
               <div className="flex flex-col">
                 <label htmlFor="payment-amount" className="text-sm font-medium">Amount (₹)</label>
@@ -102,13 +104,13 @@ export default function PaymentsPage() {
               </div>
             </div>
             <div className="mt-3">
-              <Button disabled={creating} aria-label="Record payment">{creating ? "Recording..." : "Record Payment"}</Button>
+              <Button disabled={creating || !selectedLeaseId} aria-label="Record payment">{creating ? "Recording..." : "Record Payment"}</Button>
             </div>
           </form>
         </RoleGate>
 
         <div className="rounded-2xl border bg-white p-4 shadow-sm">
-          <h2 className="mb-1 text-lg font-semibold">Payments for Lease #{leaseId}</h2>
+          <h2 className="mb-1 text-lg font-semibold">Payments for Lease #{selectedLeaseId}</h2>
           <div className="mb-3 text-sm text-gray-600">Total paid: ₹{total ?? 0}</div>
           {isLoading ? <p>Loading...</p> : isError ? <p className="text-red-600">Failed to load payments.</p> : (
             <ul className="divide-y">

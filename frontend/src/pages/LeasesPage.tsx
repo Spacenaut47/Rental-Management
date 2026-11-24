@@ -29,18 +29,21 @@ export default function LeasesPage() {
   const [optimisticLeases, setOptimisticLeases] = useState<Lease[]>([]);
 
   const [form, setForm] = useState({
-    unitId: 1,
-    tenantId: 1,
+    unitId: 0,
+    tenantId: 0,
     startDateUtc: initialStartDate,
     endDateUtc: initialEndDate,
     monthlyRent: 1200,
     securityDeposit: 1200,
   });
 
+  const selectedUnitId = form.unitId || unitsData?.[0]?.id || 0;
+  const selectedTenantId = form.tenantId || tenantsData?.[0]?.id || 0;
+
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const created = await createLease(form).unwrap();
+      const created = await createLease({ ...form, unitId: selectedUnitId, tenantId: selectedTenantId }).unwrap();
 
       // add to optimistic list if not present
       setOptimisticLeases((cur) => {
@@ -113,7 +116,7 @@ export default function LeasesPage() {
             <div className="mb-3 grid grid-cols-2 gap-3 rounded-md border bg-gray-50 p-3 text-sm">
               <div>
                 <div className="mb-1 font-medium">Choose Unit</div>
-                <select id="lease-unit-select" className="w-full rounded-md border p-2" value={form.unitId} onChange={(e) => setForm({ ...form, unitId: Number(e.target.value) })}>
+                <select id="lease-unit-select" className="w-full rounded-md border p-2" value={selectedUnitId} onChange={(e) => setForm({ ...form, unitId: Number(e.target.value) })}>
                   {unitsData?.map(u => (
                     <option key={u.id} value={u.id}>
                       Unit #{u.id} — {u.unitNumber} (Property #{u.propertyId})
@@ -123,7 +126,7 @@ export default function LeasesPage() {
               </div>
               <div>
                 <div className="mb-1 font-medium">Choose Tenant</div>
-                <select id="lease-tenant-select" className="w-full rounded-md border p-2" value={form.tenantId} onChange={(e) => setForm({ ...form, tenantId: Number(e.target.value) })}>
+                <select id="lease-tenant-select" className="w-full rounded-md border p-2" value={selectedTenantId} onChange={(e) => setForm({ ...form, tenantId: Number(e.target.value) })}>
                   {tenantsData?.map(t => (
                     <option key={t.id} value={t.id}>
                       Tenant #{t.id} — {t.firstName} {t.lastName}
@@ -152,7 +155,7 @@ export default function LeasesPage() {
               </div>
             </div>
             <div className="mt-3">
-              <Button disabled={creating} aria-label="Create lease">{creating ? "Creating..." : "Create Lease"}</Button>
+              <Button disabled={creating || !selectedUnitId || !selectedTenantId} aria-label="Create lease">{creating ? "Creating..." : "Create Lease"}</Button>
             </div>
           </form>
         </RoleGate>

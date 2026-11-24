@@ -79,11 +79,15 @@ public class UnitService : IUnitService
         var existing = await _uow.Units.GetByIdAsync(id);
         if (existing is null) return false;
 
+        var hasLeases = await _uow.GetRepository<Lease>().Query().AnyAsync(l => l.UnitId == id);
+        if (hasLeases) throw new InvalidOperationException("Cannot delete a unit that is referenced by leases.");
+
+        var hasMaintenance = await _uow.GetRepository<MaintenanceRequest>().Query().AnyAsync(m => m.UnitId == id);
+        if (hasMaintenance) throw new InvalidOperationException("Cannot delete a unit with maintenance requests.");
+
         _uow.Units.Remove(existing);
         await _uow.SaveChangesAsync();
-
         await _audit.WriteAsync(actor, "Deleted", nameof(Unit), id, $"Unit {existing.UnitNumber} deleted");
-
         return true;
     }
 }

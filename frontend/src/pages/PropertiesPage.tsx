@@ -1,6 +1,8 @@
 // src/pages/PropertiesPage.tsx
 import { useState } from "react";
 import { useListPropertiesQuery, useCreatePropertyMutation, useDeletePropertyMutation } from "../services/endpoints/propertiesApi";
+import RoleGate from "../features/auth/RoleGate";
+import { getErrorMessage } from "../lib/errors";
 import Button from "../components/ui/Button";
 
 export default function PropertiesPage() {
@@ -25,7 +27,7 @@ export default function PropertiesPage() {
       await refetch();
     } catch (err) {
       console.error("Create property failed", err);
-      alert("Failed to create property.");
+      alert(getErrorMessage(err, "Failed to create property."));
     }
   };
 
@@ -36,7 +38,7 @@ export default function PropertiesPage() {
       await refetch();
     } catch (err) {
       console.error("Delete property failed", err);
-      alert("Failed to delete property.");
+      alert(getErrorMessage(err, "Failed to delete property."));
     }
   };
 
@@ -49,8 +51,9 @@ export default function PropertiesPage() {
         </div>
 
         <div className="grid gap-6 md:grid-cols-2">
-          <form onSubmit={submit} className="rounded-2xl border bg-white p-4 shadow-sm">
-            <h2 className="mb-3 text-lg font-semibold">Create Property</h2>
+          <RoleGate allow={["Admin", "Manager"]}>
+            <form onSubmit={submit} className="rounded-2xl border bg-white p-4 shadow-sm">
+              <h2 className="mb-3 text-lg font-semibold">Create Property</h2>
             <div className="grid grid-cols-2 gap-3">
               <div className="col-span-2 flex flex-col">
                 <label htmlFor="prop-name" className="text-sm font-medium">Name</label>
@@ -84,7 +87,8 @@ export default function PropertiesPage() {
             <div className="mt-3">
               <Button disabled={creating} aria-label="Create property">{creating ? "Creating..." : "Create Property"}</Button>
             </div>
-          </form>
+            </form>
+            </RoleGate>
 
           <div className="rounded-2xl border bg-white p-4 shadow-sm">
             <h2 className="mb-3 text-lg font-semibold">Properties List (IDs shown)</h2>
@@ -102,7 +106,9 @@ export default function PropertiesPage() {
                         {p.addressLine1}, {p.city}, {p.state} {p.zip}, {p.country}
                       </div>
                     </div>
-                    <button aria-label={`Delete property ${p.name}`} onClick={() => handleDelete(p.id)} className="rounded-md px-3 py-1 text-sm text-red-600 hover:bg-red-50">Delete</button>
+                    <RoleGate allow={["Admin"]}>
+                      <button aria-label={`Delete property ${p.name}`} onClick={() => handleDelete(p.id)} className="rounded-md px-3 py-1 text-sm text-red-600 hover:bg-red-50">Delete</button>
+                    </RoleGate>
                   </li>
                 ))}
               </ul>

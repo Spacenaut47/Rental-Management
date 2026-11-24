@@ -8,6 +8,7 @@
     <OutputType>Exe</OutputType>
     <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>
+    <UseMicrosoftTestingPlatformV2>true</UseMicrosoftTestingPlatformV2>
   </PropertyGroup>
 
   <ItemGroup>

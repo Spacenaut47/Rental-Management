@@ -72,16 +72,19 @@ public class LeaseService : ILeaseService
         var existing = await repo.GetByIdAsync(id);
         if (existing is null) return null;
 
-        // if changing dates/unit, re-check overlap
-        if (dto.UnitId != existing.UnitId || dto.StartDateUtc != existing.StartDateUtc || dto.EndDateUtc != existing.EndDateUtc || dto.IsActive != existing.IsActive)
+        var unitExists = await _uow.GetRepository<Unit>().Query().AnyAsync(u => u.Id == dto.UnitId);
+        if (!unitExists) throw new ArgumentException("Unit does not exist.");
+        var tenantExists = await _uow.GetRepository<Tenant>().Query().AnyAsync(t => t.Id == dto.TenantId);
+        if (!tenantExists) throw new ArgumentException("Tenant does not exist.");
+
+        if (dto.IsActive)
         {
-            var overlap = await _uow.GetRepository<Lease>().Query().AnyAsync(l =>
+            var overlap = await repo.Query().AnyAsync(l =>
                 l.Id != id &&
                 l.UnitId == dto.UnitId &&
                 l.IsActive &&
                 l.StartDateUtc < dto.EndDateUtc &&
-                dto.StartDateUtc < l.EndDateUtc
-            );
+                dto.StartDateUtc < l.EndDateUtc);
             if (overlap) throw new InvalidOperationException("Unit already has an active overlapping lease.");
         }
 

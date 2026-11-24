@@ -65,6 +65,14 @@ public class PropertyService : IPropertyService
         var existing = await _uow.Properties.GetByIdAsync(id);
         if (existing is null) return false;
 
+        var hasUnits = await _uow.Units.Query().AnyAsync(u => u.PropertyId == id);
+        if (hasUnits)
+            throw new InvalidOperationException("Cannot delete a property that still has units.");
+
+        var hasMaintenance = await _uow.GetRepository<MaintenanceRequest>().Query().AnyAsync(m => m.PropertyId == id);
+        if (hasMaintenance)
+            throw new InvalidOperationException("Cannot delete a property with maintenance requests.");
+
         _uow.Properties.Remove(existing);
         await _uow.SaveChangesAsync();
         return true;

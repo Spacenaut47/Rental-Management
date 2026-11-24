@@ -19,9 +19,10 @@ public class MappingProfile : Profile
         CreateMap<PropertyUpdateDto, Property>();
 
         // Units
-        CreateMap<Unit, UnitReadDto>();
-        CreateMap<UnitCreateDto, Unit>();
-        CreateMap<UnitUpdateDto, Unit>();
+        CreateMap<Unit, UnitReadDto>()
+            .ForMember(d => d.IsOccupied, o => o.MapFrom(s => s.Leases.Any(l => l.IsActive)));
+        CreateMap<UnitCreateDto, Unit>().ForMember(d => d.IsOccupied, o => o.Ignore());
+        CreateMap<UnitUpdateDto, Unit>().ForMember(d => d.IsOccupied, o => o.Ignore());
 
         // Tenants
         CreateMap<Tenant, TenantReadDto>();

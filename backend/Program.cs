@@ -18,9 +18,15 @@ using backend.Security;
 
 var builder = WebApplication.CreateBuilder(args);
 
+var jwtOptions = builder.Configuration.GetSection("Jwt").Get<JwtOptions>() ?? new JwtOptions();
+if (string.IsNullOrWhiteSpace(jwtOptions.Issuer)) throw new InvalidOperationException("Jwt:Issuer must be configured.");
+if (string.IsNullOrWhiteSpace(jwtOptions.Audience)) throw new InvalidOperationException("Jwt:Audience must be configured.");
+if (string.IsNullOrWhiteSpace(jwtOptions.Key) || jwtOptions.Key.Length < 32)
+    throw new InvalidOperationException("Jwt:Key must be at least 32 characters.");
+if (!builder.Environment.IsDevelopment() && jwtOptions.Key.Contains("REPLACE_WITH", StringComparison.OrdinalIgnoreCase))
+    throw new InvalidOperationException("Jwt:Key must be replaced with a secure value outside Development.");
+
 // 1) Configuration
-var jwtSection = builder.Configuration.GetSection("Jwt");
-var jwtOptions = jwtSection.Get<JwtOptions>() ?? new JwtOptions();
 builder.Services.AddSingleton(jwtOptions);
 
 // 2) DbContext (SQL Server / Azure SQL)

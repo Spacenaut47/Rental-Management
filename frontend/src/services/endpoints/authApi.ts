@@ -11,7 +11,7 @@ type AuthResponse = {
 };
 
 type LoginRequest = { usernameOrEmail: string; password: string };
-type RegisterRequest = { username: string; email: string; password: string; role: number };
+type RegisterRequest = { username: string; email: string; password: string };
 
 export const authApi = baseApi.injectEndpoints({
   endpoints: (build) => ({

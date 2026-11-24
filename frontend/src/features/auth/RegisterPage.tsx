@@ -12,7 +12,6 @@ export default function RegisterPage() {
     username: "",
     email: "",
     password: "",
-    role: 3, // Staff default
   });
 
   // Basic client checks to prevent obvious 400s
@@ -93,17 +92,6 @@ export default function RegisterPage() {
           Must include: 8+ chars, uppercase, lowercase, digit, special
           character.
         </p>
-
-        <label className="block text-sm font-medium">Role</label>
-        <select
-          className="w-full rounded-md border p-2"
-          value={form.role}
-          onChange={(e) => setForm({ ...form, role: Number(e.target.value) })}
-        >
-          <option value={2}>Manager</option>
-          <option value={3}>Staff</option>
-          <option value={4}>Tenant</option>
-        </select>
 
         {/* Client-side errors */}
         {clientIssues.length > 0 && (
