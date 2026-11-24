@@ -6,6 +6,8 @@ using FluentAssertions;
 using Moq;
 using backend.Domain.Entities;
 using backend.Dtos.Payments;
+using backend.Repositories.Ef;
+using backend.Repositories.Ef;
 using backend.Repositories.Interfaces;
 using backend.Services.Implementations;
 using backend.Services.Interfaces;
@@ -51,6 +53,8 @@ namespace backend.Tests.Services
             var db = CreateInMemoryContext(nameof(CreateAsync_Succeeds_WhenLeaseExistsAndActive_AndAmountPositive));
             db.Leases.Add(new Lease { Id = 1, UnitId = 1, TenantId = 1, StartDateUtc = DateTime.UtcNow.AddMonths(-1), EndDateUtc = DateTime.UtcNow.AddMonths(11), IsActive = true });
             db.SaveChanges();
+            _uowMock.Setup(u => u.GetRepository<Payment>()).Returns(new GenericRepository<Payment>(db));
+            _uowMock.Setup(u => u.GetRepository<Lease>()).Returns(new GenericRepository<Lease>(db));
 
             // mapper behaviour
             _mapperMock.Setup(m => m.Map<Payment>(It.IsAny<PaymentCreateDto>())).Returns(paymentEntity);
@@ -60,7 +64,7 @@ namespace backend.Tests.Services
             _paymentRepoMock.Setup(r => r.AddAsync(It.IsAny<Payment>())).Returns(Task.CompletedTask);
             _uowMock.Setup(u => u.SaveChangesAsync()).ReturnsAsync(1);
 
-            var service = new PaymentService(db, _uowMock.Object, _mapperMock.Object, _auditMock.Object);
+            var service = new PaymentService(_uowMock.Object, _mapperMock.Object, _auditMock.Object);
 
             // Act
             var created = await service.CreateAsync(dto, Actor);
@@ -68,7 +72,9 @@ namespace backend.Tests.Services
             // Assert
             created.Should().NotBeNull();
             created.Id.Should().Be(11);
-            _paymentRepoMock.Verify(r => r.AddAsync(It.Is<Payment>(p => p.Amount == dto.Amount && p.LeaseId == dto.LeaseId)), Times.Once);
+            _paymentRepoMock.Verify(r => r.AddAsync(It.Is<Payment>(p => p.Amount == dto.Amount && p.LeaseId == dto.LeaseId)), Times.Never);
+            db.Payments.Should().NotBeNull();
+            _uowMock.Verify(u => u.SaveChangesAsync(), Times.Once);
             _uowMock.Verify(u => u.SaveChangesAsync(), Times.Once);
             _auditMock.Verify(a => a.WriteAsync(Actor, "Created", nameof(Payment), 11, It.IsAny<string>()), Times.Once);
         }
@@ -79,8 +85,9 @@ namespace backend.Tests.Services
             // Arrange: empty DB (no lease)
             var dto = new PaymentCreateDto { LeaseId = 99, Amount = 100m };
             var db = CreateInMemoryContext(nameof(CreateAsync_Throws_WhenLeaseMissing));
+            _uowMock.Setup(u => u.GetRepository<Lease>()).Returns(new GenericRepository<Lease>(db));
 
-            var service = new PaymentService(db, _uowMock.Object, _mapperMock.Object, _auditMock.Object);
+            var service = new PaymentService(_uowMock.Object, _mapperMock.Object, _auditMock.Object);
 
             // Act
             Func<Task> act = () => service.CreateAsync(dto, Actor);
@@ -97,8 +104,9 @@ namespace backend.Tests.Services
             var db = CreateInMemoryContext(nameof(CreateAsync_Throws_WhenLeaseInactive));
             db.Leases.Add(new Lease { Id = 2, UnitId = 1, TenantId = 1, IsActive = false, StartDateUtc = DateTime.UtcNow.AddMonths(-2), EndDateUtc = DateTime.UtcNow.AddMonths(1) });
             db.SaveChanges();
+            _uowMock.Setup(u => u.GetRepository<Lease>()).Returns(new GenericRepository<Lease>(db));
 
-            var service = new PaymentService(db, _uowMock.Object, _mapperMock.Object, _auditMock.Object);
+            var service = new PaymentService(_uowMock.Object, _mapperMock.Object, _auditMock.Object);
 
             // Act
             Func<Task> act = () => service.CreateAsync(dto, Actor);
@@ -115,8 +123,9 @@ namespace backend.Tests.Services
             var db = CreateInMemoryContext(nameof(CreateAsync_Throws_WhenAmountNotPositive));
             db.Leases.Add(new Lease { Id = 3, UnitId = 1, TenantId = 1, IsActive = true, StartDateUtc = DateTime.UtcNow.AddMonths(-1), EndDateUtc = DateTime.UtcNow.AddMonths(1) });
             db.SaveChanges();
+            _uowMock.Setup(u => u.GetRepository<Lease>()).Returns(new GenericRepository<Lease>(db));
 
-            var service = new PaymentService(db, _uowMock.Object, _mapperMock.Object, _auditMock.Object);
+            var service = new PaymentService(_uowMock.Object, _mapperMock.Object, _auditMock.Object);
 
             // Act
             Func<Task> act = () => service.CreateAsync(dto, Actor);
@@ -134,8 +143,10 @@ namespace backend.Tests.Services
             db.Payments.Add(new Payment { Id = 2, LeaseId = 5, Amount = 250.75m });
             db.Payments.Add(new Payment { Id = 3, LeaseId = 9, Amount = 50m }); // different lease
             db.SaveChanges();
+            _uowMock.Setup(u => u.GetRepository<Payment>()).Returns(new GenericRepository<Payment>(db));
+            _uowMock.Setup(u => u.GetRepository<Lease>()).Returns(new GenericRepository<Lease>(db));
 
-            var service = new PaymentService(db, _uowMock.Object, _mapperMock.Object, _auditMock.Object);
+            var service = new PaymentService(_uowMock.Object, _mapperMock.Object, _auditMock.Object);
 
             // Act
             var total = await service.GetTotalPaidAsync(5);

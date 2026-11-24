@@ -41,18 +41,14 @@ public class AppDbContext : DbContext
             .HasForeignKey(u => u.PropertyId)
             .OnDelete(DeleteBehavior.Cascade);
 
-        modelBuilder.Entity<Unit>()
-            .HasMany(u => u.Leases)
-            .WithOne(l => l.Unit);
-
         modelBuilder.Entity<Tenant>()
             .HasIndex(t => t.Email)
             .IsUnique();
 
         modelBuilder.Entity<Lease>()
             .HasOne(l => l.Unit)
-            .WithOne()
-            .HasForeignKey<Lease>(l => l.UnitId)
+            .WithMany(u => u.Leases)
+            .HasForeignKey(l => l.UnitId)
             .OnDelete(DeleteBehavior.Restrict);
 
         modelBuilder.Entity<Lease>()

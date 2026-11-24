@@ -114,8 +114,9 @@ namespace backend.Tests.Controllers
         public async Task Update_ReturnsOk_WhenUpdated()
         {
             var dto = new LeaseUpdateDto { UnitId = 1, TenantId = 1, StartDateUtc = System.DateTime.UtcNow, EndDateUtc = System.DateTime.UtcNow.AddMonths(1) };
+            _validatorMock.Setup(v => v.ValidateAsync(It.IsAny<LeaseCreateDto>(), default)).ReturnsAsync(new ValidationResult());
             var updated = new LeaseReadDto { Id = 1, UnitId = 1, TenantId = 1 };
-
+            _validatorMock.Setup(v => v.ValidateAsync(It.IsAny<LeaseCreateDto>(), default)).ReturnsAsync(new ValidationResult());
             _serviceMock.Setup(s => s.UpdateAsync(1, dto, "testuser")).ReturnsAsync(updated);
 
             var controller = CreateController();
@@ -131,6 +132,7 @@ namespace backend.Tests.Controllers
         public async Task Update_ReturnsNotFound_WhenMissing()
         {
             var dto = new LeaseUpdateDto { UnitId = 1, TenantId = 1, StartDateUtc = System.DateTime.UtcNow, EndDateUtc = System.DateTime.UtcNow.AddMonths(1) };
+            _validatorMock.Setup(v => v.ValidateAsync(It.IsAny<LeaseCreateDto>(), default)).ReturnsAsync(new ValidationResult());
 
             _serviceMock.Setup(s => s.UpdateAsync(1, dto, "testuser")).ReturnsAsync((LeaseReadDto?)null);
 

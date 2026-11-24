@@ -47,15 +47,17 @@ namespace backend.Tests.Services.UnitTests
             var entity = new Tenant { Id = 1, FirstName = "John", LastName = "Doe", Email = "j@doe.com" };
 
             var db = CreateInMemoryContext(nameof(CreateAsync_AddsTenant_WhenEmailNotExists));
+            _tenantRepoMock.Setup(r => r.Query()).Returns(db.Tenants);
 
             _mapperMock.Setup(m => m.Map<Tenant>(dto)).Returns(entity);
             _mapperMock.Setup(m => m.Map<TenantReadDto>(entity))
                 .Returns(new TenantReadDto { Id = 1, FirstName = "John", LastName = "Doe", Email = "j@doe.com" });
 
+            _tenantRepoMock.Setup(r => r.Query()).Returns(CreateInMemoryContext(nameof(CreateAsync_AddsTenant_WhenEmailNotExists)).Tenants);
             _tenantRepoMock.Setup(r => r.AddAsync(It.IsAny<Tenant>())).Returns(Task.CompletedTask);
             _uowMock.Setup(u => u.SaveChangesAsync()).ReturnsAsync(1);
 
-            var service = new TenantService(db, _uowMock.Object, _mapperMock.Object, _auditMock.Object);
+            var service = new TenantService(_uowMock.Object, _mapperMock.Object, _auditMock.Object);
 
             // Act
             var result = await service.CreateAsync(dto, Actor);
@@ -76,7 +78,7 @@ namespace backend.Tests.Services.UnitTests
             db.Tenants.Add(new Tenant { FirstName = "Existing", LastName = "User", Email = "jane@test.com" });
             db.SaveChanges();
 
-            var service = new TenantService(db, _uowMock.Object, _mapperMock.Object, _auditMock.Object);
+            var service = new TenantService(_uowMock.Object, _mapperMock.Object, _auditMock.Object);
 
             // Act
             var act = async () => await service.CreateAsync(dto, Actor);
@@ -93,7 +95,7 @@ namespace backend.Tests.Services.UnitTests
             _tenantRepoMock.Setup(r => r.GetByIdAsync(999)).ReturnsAsync((Tenant?)null);
 
             var db = CreateInMemoryContext(nameof(UpdateAsync_ReturnsNull_WhenNotFound));
-            var service = new TenantService(db, _uowMock.Object, _mapperMock.Object, _auditMock.Object);
+            var service = new TenantService(_uowMock.Object, _mapperMock.Object, _auditMock.Object);
 
             // Act
             var result = await service.UpdateAsync(999, new TenantUpdateDto { FirstName = "X", LastName = "Y", Email = "x@y.com" }, Actor);
@@ -113,10 +115,11 @@ namespace backend.Tests.Services.UnitTests
             var db = CreateInMemoryContext(nameof(UpdateAsync_Throws_WhenDuplicateEmail));
             db.Tenants.Add(new Tenant { Id = 2, FirstName = "Other", LastName = "User", Email = "dup@test.com" });
             db.SaveChanges();
+            _tenantRepoMock.Setup(r => r.Query()).Returns(db.Tenants);
 
             var dto = new TenantUpdateDto { FirstName = "New", LastName = "User", Email = "dup@test.com" };
 
-            var service = new TenantService(db, _uowMock.Object, _mapperMock.Object, _auditMock.Object);
+            var service = new TenantService(_uowMock.Object, _mapperMock.Object, _auditMock.Object);
 
             // Act
             var act = async () => await service.UpdateAsync(1, dto, Actor);
@@ -147,7 +150,7 @@ namespace backend.Tests.Services.UnitTests
             _uowMock.Setup(u => u.SaveChangesAsync()).ReturnsAsync(1);
 
             var db = CreateInMemoryContext(nameof(UpdateAsync_UpdatesTenant_WhenValid));
-            var service = new TenantService(db, _uowMock.Object, _mapperMock.Object, _auditMock.Object);
+            var service = new TenantService(_uowMock.Object, _mapperMock.Object, _auditMock.Object);
 
             // Act
             var result = await service.UpdateAsync(3, dto, Actor);
@@ -165,7 +168,7 @@ namespace backend.Tests.Services.UnitTests
             _tenantRepoMock.Setup(r => r.GetByIdAsync(404)).ReturnsAsync((Tenant?)null);
 
             var db = CreateInMemoryContext(nameof(DeleteAsync_ReturnsFalse_WhenNotFound));
-            var service = new TenantService(db, _uowMock.Object, _mapperMock.Object, _auditMock.Object);
+            var service = new TenantService(_uowMock.Object, _mapperMock.Object, _auditMock.Object);
 
             // Act
             var result = await service.DeleteAsync(404, Actor);
@@ -185,7 +188,11 @@ namespace backend.Tests.Services.UnitTests
             _uowMock.Setup(u => u.SaveChangesAsync()).ReturnsAsync(1);
 
             var db = CreateInMemoryContext(nameof(DeleteAsync_RemovesTenant_WhenFound));
-            var service = new TenantService(db, _uowMock.Object, _mapperMock.Object, _auditMock.Object);
+            _tenantRepoMock.Setup(r => r.Query()).Returns(db.Tenants);
+            _uowMock.Setup(u => u.GetRepository<Lease>()).Returns(new GenericRepository<Lease>(db));
+            _uowMock.Setup(u => u.GetRepository<MaintenanceRequest>()).Returns(new GenericRepository<MaintenanceRequest>(db));
+            _tenantRepoMock.Setup(r => r.Query()).Returns(db.Tenants);
+            var service = new TenantService(_uowMock.Object, _mapperMock.Object, _auditMock.Object);
 
             // Act
             var result = await service.DeleteAsync(5, Actor);

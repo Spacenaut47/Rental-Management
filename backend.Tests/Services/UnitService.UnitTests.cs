@@ -4,6 +4,7 @@ using FluentAssertions;
 using Moq;
 using backend.Domain.Entities;
 using backend.Dtos.Units;
+using backend.Repositories.Ef;
 using backend.Repositories.Interfaces;
 using backend.Services.Implementations;
 using backend.Services.Interfaces;
@@ -89,7 +90,11 @@ namespace backend.Tests.Services.UnitTests
             dbCtx.SaveChanges();
 
 
-            var service = new UnitService(dbCtx, _uowMock.Object, _mapperMock.Object, _auditMock.Object);
+            _uowMock.Setup(u => u.GetRepository<Lease>()).Returns(new GenericRepository<Lease>(dbCtx));
+            _uowMock.Setup(u => u.GetRepository<MaintenanceRequest>()).Returns(new GenericRepository<MaintenanceRequest>(dbCtx));
+            _uowMock.Setup(u => u.Units).Returns(new GenericRepository<Unit>(dbCtx));
+            _uowMock.Setup(u => u.Properties).Returns(new GenericRepository<Property>(dbCtx));
+            var service = new UnitService(_uowMock.Object, _mapperMock.Object, _auditMock.Object);
 
             // Act
             var created = await service.CreateAsync(dto, Actor);
@@ -98,7 +103,7 @@ namespace backend.Tests.Services.UnitTests
             created.Should().NotBeNull();
             created.Id.Should().Be(42);
 
-            _unitRepoMock.Verify(r => r.AddAsync(It.Is<Unit>(u => u.UnitNumber == "101")), Times.Once);
+            dbCtx.Units.Count(u => u.UnitNumber == "101").Should().Be(1);
             _uowMock.Verify(u => u.SaveChangesAsync(), Times.Once);
             _auditMock.Verify(a => a.WriteAsync(Actor, "Created", nameof(Unit), 42, It.IsAny<string>()), Times.Once);
         }
@@ -110,7 +115,9 @@ namespace backend.Tests.Services.UnitTests
             _unitRepoMock.Setup(r => r.GetByIdAsync(999)).ReturnsAsync((Unit?)null);
 
             var ctx = CreateInMemoryContext(nameof(UpdateAsync_ReturnsNull_WhenNotFound));
-            var service = new UnitService(ctx, _uowMock.Object, _mapperMock.Object, _auditMock.Object);
+            _uowMock.Setup(u => u.GetRepository<Lease>()).Returns(new GenericRepository<Lease>(ctx));
+            _uowMock.Setup(u => u.GetRepository<MaintenanceRequest>()).Returns(new GenericRepository<MaintenanceRequest>(ctx));
+            var service = new UnitService(_uowMock.Object, _mapperMock.Object, _auditMock.Object);
 
             var dto = new UnitUpdateDto { PropertyId = 1, UnitNumber = "X" };
 
@@ -142,7 +149,9 @@ namespace backend.Tests.Services.UnitTests
             _uowMock.Setup(u => u.SaveChangesAsync()).ReturnsAsync(1);
 
             var ctx = CreateInMemoryContext(nameof(UpdateAsync_Updates_WhenExists));
-            var service = new UnitService(ctx, _uowMock.Object, _mapperMock.Object, _auditMock.Object);
+            _uowMock.Setup(u => u.GetRepository<Lease>()).Returns(new GenericRepository<Lease>(ctx));
+            _uowMock.Setup(u => u.GetRepository<MaintenanceRequest>()).Returns(new GenericRepository<MaintenanceRequest>(ctx));
+            var service = new UnitService(_uowMock.Object, _mapperMock.Object, _auditMock.Object);
 
             var dto = new UnitUpdateDto { PropertyId = 1, UnitNumber = "10B" };
 
@@ -167,7 +176,9 @@ namespace backend.Tests.Services.UnitTests
             _uowMock.Setup(u => u.SaveChangesAsync()).ReturnsAsync(1);
 
             var ctx = CreateInMemoryContext(nameof(DeleteAsync_Removes_WhenExists));
-            var service = new UnitService(ctx, _uowMock.Object, _mapperMock.Object, _auditMock.Object);
+            _uowMock.Setup(u => u.GetRepository<Lease>()).Returns(new GenericRepository<Lease>(ctx));
+            _uowMock.Setup(u => u.GetRepository<MaintenanceRequest>()).Returns(new GenericRepository<MaintenanceRequest>(ctx));
+            var service = new UnitService(_uowMock.Object, _mapperMock.Object, _auditMock.Object);
 
             // Act
             var ok = await service.DeleteAsync(existing.Id, Actor);
@@ -184,7 +195,9 @@ namespace backend.Tests.Services.UnitTests
             _unitRepoMock.Setup(r => r.GetByIdAsync(999)).ReturnsAsync((Unit?)null);
 
             var ctx = CreateInMemoryContext(nameof(DeleteAsync_ReturnsFalse_WhenNotFound));
-            var service = new UnitService(ctx, _uowMock.Object, _mapperMock.Object, _auditMock.Object);
+            _uowMock.Setup(u => u.GetRepository<Lease>()).Returns(new GenericRepository<Lease>(ctx));
+            _uowMock.Setup(u => u.GetRepository<MaintenanceRequest>()).Returns(new GenericRepository<MaintenanceRequest>(ctx));
+            var service = new UnitService(_uowMock.Object, _mapperMock.Object, _auditMock.Object);
 
             // Act
             var ok = await service.DeleteAsync(999, Actor);

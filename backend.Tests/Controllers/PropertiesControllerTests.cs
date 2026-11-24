@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using FluentAssertions;
+using FluentValidation;
 using Microsoft.AspNetCore.Mvc;
 using Moq;
 using backend.Controllers;
@@ -12,6 +13,13 @@ namespace backend.Tests.Controllers;
 
 public class PropertiesControllerTests
 {
+    private static PropertiesController CreateController(IPropertyService service)
+    {
+        var validator = new Mock<IValidator<PropertyCreateDto>>();
+        validator.Setup(v => v.ValidateAsync(It.IsAny<PropertyCreateDto>())).ReturnsAsync(new FluentValidation.Results.ValidationResult());
+        return new PropertiesController(service, validator.Object);
+    }
+
     [Fact]
     public async Task GetAll_ReturnsOk_WithList()
     {
@@ -22,7 +30,7 @@ public class PropertiesControllerTests
             new PropertyReadDto { Id = 1, Name = "P1", AddressLine1 = "A1", City = "C", State = "S", Zip = "Z", Country = "X" }
         });
 
-        var controller = new PropertiesController(mock.Object);
+        var controller = CreateController(mock.Object);
 
         // Act
         var result = await controller.GetAll();
@@ -40,7 +48,7 @@ public class PropertiesControllerTests
         var mock = new Mock<IPropertyService>();
         mock.Setup(s => s.GetByIdAsync(5)).ReturnsAsync((PropertyReadDto?)null);
 
-        var controller = new PropertiesController(mock.Object);
+        var controller = CreateController(mock.Object);
 
         // Act
         var result = await controller.GetById(5);
@@ -68,7 +76,7 @@ public class PropertiesControllerTests
         var mock = new Mock<IPropertyService>();
         mock.Setup(s => s.CreateAsync(It.IsAny<PropertyCreateDto>())).ReturnsAsync(created);
 
-        var controller = new PropertiesController(mock.Object);
+        var controller = CreateController(mock.Object);
 
         // Act
         var result = await controller.Create(input);
@@ -86,7 +94,7 @@ public class PropertiesControllerTests
         var mock = new Mock<IPropertyService>();
         mock.Setup(s => s.DeleteAsync(7)).ReturnsAsync(true);
 
-        var controller = new PropertiesController(mock.Object);
+        var controller = CreateController(mock.Object);
 
         // Act
         var result = await controller.Delete(7);
@@ -102,7 +110,7 @@ public class PropertiesControllerTests
         var mock = new Mock<IPropertyService>();
         mock.Setup(s => s.DeleteAsync(8)).ReturnsAsync(false);
 
-        var controller = new PropertiesController(mock.Object);
+        var controller = CreateController(mock.Object);
 
         // Act
         var result = await controller.Delete(8);

@@ -638,4 +638,6 @@ pnpm-lock.yaml
 # Example:
 # /uploads/
 # /storage/
-# /temp-files/
+# /temp-files/playwright-report/
+test-results/
+playwright-coverage/

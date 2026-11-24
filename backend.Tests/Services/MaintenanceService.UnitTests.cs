@@ -4,6 +4,7 @@ using Moq;
 using backend.Data;
 using backend.Domain.Entities;
 using backend.Dtos.Maintenance;
+using backend.Repositories.Ef;
 using backend.Repositories.Interfaces;
 using backend.Services.Implementations;
 using backend.Services.Interfaces;
@@ -46,6 +47,7 @@ namespace backend.Tests.Services
         public async Task CreateAsync_AddsRequest_SavesAndLogs()
         {
             var db = CreateInMemoryContext(nameof(CreateAsync_AddsRequest_SavesAndLogs));
+            _uowMock.Setup(u => u.GetRepository<MaintenanceRequest>()).Returns(new GenericRepository<MaintenanceRequest>(db));
             db.Properties.Add(new backend.Domain.Entities.Property
             {
                 Id = 1,
@@ -58,16 +60,14 @@ namespace backend.Tests.Services
             });
             db.SaveChanges();
 
-            var repoMock = new Mock<IGenericRepository<MaintenanceRequest>>();
-            _uowMock.Setup(u => u.GetRepository<MaintenanceRequest>()).Returns(repoMock.Object);
-            _uowMock.Setup(u => u.SaveChangesAsync()).ReturnsAsync(1);
+            _uowMock.Setup(u => u.GetRepository<Property>()).Returns(new GenericRepository<Property>(db));
 
             _auditMock.Setup(a => a.WriteAsync(It.IsAny<string>(), It.IsAny<string>(),
                                                It.IsAny<string>(), It.IsAny<int?>(), It.IsAny<string?>()))
                       .Returns(Task.CompletedTask);
 
             var mapper = CreateRealMapper();
-            var service = new MaintenanceService(db, _uowMock.Object, mapper, _auditMock.Object);
+            var service = new MaintenanceService(_uowMock.Object, mapper, _auditMock.Object);
 
             var dto = new MaintenanceCreateDto
             {
@@ -81,7 +81,8 @@ namespace backend.Tests.Services
             created.Should().NotBeNull();
             created.Title.Should().Be("Broken AC");
 
-            repoMock.Verify(r => r.AddAsync(It.IsAny<MaintenanceRequest>()), Times.Once);
+            db.MaintenanceRequests.Should().NotBeNull();
+            _uowMock.Verify(u => u.SaveChangesAsync(), Times.Once);
             _uowMock.Verify(u => u.SaveChangesAsync(), Times.Once);
             _auditMock.Verify(a => a.WriteAsync(Actor, "Created", nameof(MaintenanceRequest),
                                                 It.IsAny<int>(), "Broken AC"), Times.Once);
@@ -91,12 +92,13 @@ namespace backend.Tests.Services
         public async Task GetAsync_ReturnsFilteredResults()
         {
             var db = CreateInMemoryContext(nameof(GetAsync_ReturnsFilteredResults));
+            _uowMock.Setup(u => u.GetRepository<MaintenanceRequest>()).Returns(new GenericRepository<MaintenanceRequest>(db));
             db.MaintenanceRequests.Add(new MaintenanceRequest { Id = 1, PropertyId = 1, Title = "Leak" });
             db.MaintenanceRequests.Add(new MaintenanceRequest { Id = 2, PropertyId = 2, Title = "AC Issue" });
             db.SaveChanges();
 
             var mapper = CreateRealMapper();
-            var service = new MaintenanceService(db, _uowMock.Object, mapper, _auditMock.Object);
+            var service = new MaintenanceService(_uowMock.Object, mapper, _auditMock.Object);
 
             var results = await service.GetAsync(propertyId: 1);
 
@@ -107,9 +109,10 @@ namespace backend.Tests.Services
         public async Task GetById_ReturnsNull_WhenMissing()
         {
             var db = CreateInMemoryContext(nameof(GetById_ReturnsNull_WhenMissing));
+            _uowMock.Setup(u => u.GetRepository<MaintenanceRequest>()).Returns(new GenericRepository<MaintenanceRequest>(db));
 
             var mapper = CreateRealMapper();
-            var service = new MaintenanceService(db, _uowMock.Object, mapper, _auditMock.Object);
+            var service = new MaintenanceService(_uowMock.Object, mapper, _auditMock.Object);
 
             var result = await service.GetByIdAsync(999);
 
@@ -128,10 +131,12 @@ namespace backend.Tests.Services
             var repoMock = new Mock<IGenericRepository<MaintenanceRequest>>();
             repoMock.Setup(r => r.GetByIdAsync(existing.Id)).ReturnsAsync(existing);
             _uowMock.Setup(u => u.GetRepository<MaintenanceRequest>()).Returns(repoMock.Object);
+            repoMock.Setup(r => r.Query()).Returns(db.MaintenanceRequests);
+            repoMock.Setup(r => r.AddAsync(It.IsAny<MaintenanceRequest>())).Returns(Task.CompletedTask);
             _uowMock.Setup(u => u.SaveChangesAsync()).ReturnsAsync(1);
 
             var mapper = CreateRealMapper();
-            var service = new MaintenanceService(db, _uowMock.Object, mapper, _auditMock.Object);
+            var service = new MaintenanceService(_uowMock.Object, mapper, _auditMock.Object);
 
             var dto = new MaintenanceUpdateDto { Title = "Updated", Description = "Fixed", Priority = Domain.Enums.MaintenancePriority.Low, Status = Domain.Enums.MaintenanceStatus.InProgress };
 
@@ -153,10 +158,12 @@ namespace backend.Tests.Services
             var repoMock = new Mock<IGenericRepository<MaintenanceRequest>>();
             repoMock.Setup(r => r.GetByIdAsync(existing.Id)).ReturnsAsync(existing);
             _uowMock.Setup(u => u.GetRepository<MaintenanceRequest>()).Returns(repoMock.Object);
+            repoMock.Setup(r => r.Query()).Returns(db.MaintenanceRequests);
+            repoMock.Setup(r => r.AddAsync(It.IsAny<MaintenanceRequest>())).Returns(Task.CompletedTask);
             _uowMock.Setup(u => u.SaveChangesAsync()).ReturnsAsync(1);
 
             var mapper = CreateRealMapper();
-            var service = new MaintenanceService(db, _uowMock.Object, mapper, _auditMock.Object);
+            var service = new MaintenanceService(_uowMock.Object, mapper, _auditMock.Object);
 
             var ok = await service.DeleteAsync(existing.Id, Actor);
 
@@ -172,9 +179,11 @@ namespace backend.Tests.Services
             var repoMock = new Mock<IGenericRepository<MaintenanceRequest>>();
             repoMock.Setup(r => r.GetByIdAsync(999)).ReturnsAsync((MaintenanceRequest?)null);
             _uowMock.Setup(u => u.GetRepository<MaintenanceRequest>()).Returns(repoMock.Object);
+            repoMock.Setup(r => r.Query()).Returns(db.MaintenanceRequests);
+            repoMock.Setup(r => r.AddAsync(It.IsAny<MaintenanceRequest>())).Returns(Task.CompletedTask);
 
             var mapper = CreateRealMapper();
-            var service = new MaintenanceService(db, _uowMock.Object, mapper, _auditMock.Object);
+            var service = new MaintenanceService(_uowMock.Object, mapper, _auditMock.Object);
 
             var ok = await service.DeleteAsync(999, Actor);
 

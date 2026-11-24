@@ -5,6 +5,8 @@ using FluentAssertions;
 using Moq;
 using backend.Domain.Entities;
 using backend.Dtos.Leases;
+using backend.Repositories.Ef;
+using backend.Repositories.Ef;
 using backend.Repositories.Interfaces;
 using backend.Services.Implementations;
 using backend.Services.Interfaces;
@@ -58,15 +60,20 @@ namespace backend.Tests.Services
             db.Units.Add(new Unit { Id = 1, PropertyId = 1, UnitNumber = "101", Bedrooms = 2, Bathrooms = 1, Rent = 1000, SizeSqFt = 500 });
             db.Tenants.Add(new Tenant { Id = 1, FirstName = "Test", LastName = "Tenant", Email = "t@test.com" });
             db.SaveChanges();
-
-            _mapperMock.Setup(m => m.Map<Lease>(dto)).Returns(entity);
+            _uowMock.Setup(u => u.GetRepository<Unit>()).Returns(new GenericRepository<Unit>(db));
+            _uowMock.Setup(u => u.GetRepository<Tenant>()).Returns(new GenericRepository<Tenant>(db));
+            _uowMock.Setup(u => u.GetRepository<Lease>()).Returns(new GenericRepository<Lease>(db));
             _mapperMock.Setup(m => m.Map<LeaseReadDto>(entity))
                 .Returns(new LeaseReadDto { Id = 10, UnitId = 1, TenantId = 1 });
 
             _leaseRepoMock.Setup(r => r.AddAsync(entity)).Returns(Task.CompletedTask);
+            _leaseRepoMock.Setup(r => r.Query()).Returns(db.Leases);
             _uowMock.Setup(u => u.SaveChangesAsync()).ReturnsAsync(1);
 
-            var service = new LeaseService(db, _uowMock.Object, _mapperMock.Object, _auditMock.Object);
+            var service = new LeaseService(_uowMock.Object, _mapperMock.Object, _auditMock.Object);
+            _uowMock.Setup(u => u.GetRepository<Unit>()).Returns(new GenericRepository<Unit>(db));
+            _uowMock.Setup(u => u.GetRepository<Tenant>()).Returns(new GenericRepository<Tenant>(db));
+            _uowMock.Setup(u => u.GetRepository<Lease>()).Returns(new GenericRepository<Lease>(db));
 
             var result = await service.CreateAsync(dto, Actor);
 
@@ -88,8 +95,9 @@ namespace backend.Tests.Services
             var db = CreateInMemoryContext(nameof(CreateAsync_Throws_WhenUnitMissing));
             db.Tenants.Add(new Tenant { Id = 1, FirstName = "T", LastName = "T", Email = "t@test.com" });
             db.SaveChanges();
+            _uowMock.Setup(u => u.GetRepository<Unit>()).Returns(new GenericRepository<Unit>(db));
 
-            var service = new LeaseService(db, _uowMock.Object, _mapperMock.Object, _auditMock.Object);
+            var service = new LeaseService(_uowMock.Object, _mapperMock.Object, _auditMock.Object);
 
             Func<Task> act = () => service.CreateAsync(dto, Actor);
 
@@ -116,7 +124,12 @@ namespace backend.Tests.Services
             db.Leases.Add(new Lease { Id = 1, UnitId = 1, TenantId = 1, StartDateUtc = start, EndDateUtc = end, IsActive = true });
             db.SaveChanges();
 
-            var service = new LeaseService(db, _uowMock.Object, _mapperMock.Object, _auditMock.Object);
+            db.SaveChanges();
+            _uowMock.Setup(u => u.GetRepository<Unit>()).Returns(new GenericRepository<Unit>(db));
+            _uowMock.Setup(u => u.GetRepository<Tenant>()).Returns(new GenericRepository<Tenant>(db));
+            _uowMock.Setup(u => u.GetRepository<Lease>()).Returns(new GenericRepository<Lease>(db));
+
+            var service = new LeaseService(_uowMock.Object, _mapperMock.Object, _auditMock.Object);
 
             Func<Task> act = () => service.CreateAsync(dto, Actor);
 
@@ -130,7 +143,7 @@ namespace backend.Tests.Services
             _leaseRepoMock.Setup(r => r.GetByIdAsync(999)).ReturnsAsync((Lease?)null);
 
             var db = CreateInMemoryContext(nameof(UpdateAsync_ReturnsNull_WhenNotFound));
-            var service = new LeaseService(db, _uowMock.Object, _mapperMock.Object, _auditMock.Object);
+            var service = new LeaseService(_uowMock.Object, _mapperMock.Object, _auditMock.Object);
 
             var result = await service.UpdateAsync(999, new LeaseUpdateDto
             {
@@ -153,7 +166,7 @@ namespace backend.Tests.Services
             _uowMock.Setup(u => u.SaveChangesAsync()).ReturnsAsync(1);
 
             var db = CreateInMemoryContext(nameof(DeleteAsync_Removes_WhenFound));
-            var service = new LeaseService(db, _uowMock.Object, _mapperMock.Object, _auditMock.Object);
+            var service = new LeaseService(_uowMock.Object, _mapperMock.Object, _auditMock.Object);
 
             var ok = await service.DeleteAsync(50, Actor);
 

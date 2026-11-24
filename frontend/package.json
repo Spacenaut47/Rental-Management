@@ -10,8 +10,13 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test:e2e": "npx playwright install && playwright test",
+    "test:ui": "playwright test --ui",
+    "test:headed": "playwright test --headed"
   },
+  "description": "Modern React + TypeScript + Vite frontend for the Rental Management app",
+  "keywords": ["rental", "management", "react", "typescript", "vite", "redux", "tailwindcss"],
   "dependencies": {
     "@reduxjs/toolkit": "^2.15.0",
     "react": "^19.3.1",
@@ -21,6 +26,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.65.1",
     "@tailwindcss/vite": "^4.3.5",
     "@types/node": "^26.6.6",
     "@types/react": "^19.3.1",

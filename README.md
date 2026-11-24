@@ -83,7 +83,7 @@ Each controller corresponds to a domain (e.g. `PropertiesController`, `TenantsCo
 
 ## Database
 
-- Uses **SQL Server** by default.  
+- Uses **SQLite** by default.  
 - EF Core manages the schema and relationships.  
 - On startup, the application seeds default data including an admin account and sample records.  
 - Entities include `User`, `Property`, `Unit`, `Tenant`, `Lease`, `Payment`, and `MaintenanceRequest`.

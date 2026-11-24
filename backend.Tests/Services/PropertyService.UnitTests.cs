@@ -5,6 +5,9 @@ using FluentAssertions;
 using Moq;
 using backend.Domain.Entities;
 using backend.Dtos.Properties;
+using backend.Repositories.Ef;
+using Microsoft.EntityFrameworkCore;
+using backend.Repositories.Ef;
 using backend.Repositories.Interfaces;
 using backend.Services.Implementations;
 using Xunit;
@@ -20,13 +23,15 @@ namespace backend.Tests.Services.UnitTests
         public PropertyServiceUnitTests()
         {
             _uowMock.Setup(u => u.Properties).Returns(_propRepoMock.Object);
+            _uowMock.Setup(u => u.Units).Returns(new GenericRepository<Unit>(CreateUnusedContext()));
+            _uowMock.Setup(u => u.GetRepository<MaintenanceRequest>()).Returns(new GenericRepository<MaintenanceRequest>(CreateUnusedContext()));
         }
 
-        // Create a minimal (unused) AppDbContext instance. We only pass it because PropertyService
-        // requires one; the unit-tested methods don't use the context when mocks are set correctly.
-        private static backend.Data.AppDbContext CreateUnusedContext()
+        // Create an empty in-memory context. PropertyService reads through _uow, not this ctx.
+        private static backend.Data.AppDbContext CreateUnusedContext(string dbName = "property_service_tests")
         {
             var options = new Microsoft.EntityFrameworkCore.DbContextOptionsBuilder<backend.Data.AppDbContext>()
+                .UseInMemoryDatabase(dbName)
                 .Options;
             return new backend.Data.AppDbContext(options);
         }
@@ -72,7 +77,7 @@ namespace backend.Tests.Services.UnitTests
             _uowMock.Setup(u => u.SaveChangesAsync()).ReturnsAsync(1);
 
             var ctx = CreateUnusedContext();
-            var service = new PropertyService(ctx, _uowMock.Object, _mapperMock.Object);
+            var service = new PropertyService(_uowMock.Object, _mapperMock.Object);
 
             // Act
             var created = await service.CreateAsync(dto);
@@ -95,7 +100,7 @@ namespace backend.Tests.Services.UnitTests
             _propRepoMock.Setup(r => r.GetByIdAsync(missingId)).ReturnsAsync((Property?)null);
 
             var ctx = CreateUnusedContext();
-            var service = new PropertyService(ctx, _uowMock.Object, _mapperMock.Object);
+            var service = new PropertyService(_uowMock.Object, _mapperMock.Object);
 
             var dto = new PropertyUpdateDto
             {
@@ -159,7 +164,7 @@ namespace backend.Tests.Services.UnitTests
             _uowMock.Setup(u => u.SaveChangesAsync()).ReturnsAsync(1);
 
             var ctx = CreateUnusedContext();
-            var service = new PropertyService(ctx, _uowMock.Object, _mapperMock.Object);
+            var service = new PropertyService(_uowMock.Object, _mapperMock.Object);
 
             var dto = new PropertyUpdateDto
             {
@@ -203,7 +208,7 @@ namespace backend.Tests.Services.UnitTests
             _uowMock.Setup(u => u.SaveChangesAsync()).ReturnsAsync(1);
 
             var ctx = CreateUnusedContext();
-            var service = new PropertyService(ctx, _uowMock.Object, _mapperMock.Object);
+            var service = new PropertyService(_uowMock.Object, _mapperMock.Object);
 
             // Act
             var ok = await service.DeleteAsync(existing.Id);
@@ -222,7 +227,7 @@ namespace backend.Tests.Services.UnitTests
             _propRepoMock.Setup(r => r.GetByIdAsync(999)).ReturnsAsync((Property?)null);
 
             var ctx = CreateUnusedContext();
-            var service = new PropertyService(ctx, _uowMock.Object, _mapperMock.Object);
+            var service = new PropertyService(_uowMock.Object, _mapperMock.Object);
 
             // Act
             var ok = await service.DeleteAsync(999);
