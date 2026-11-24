@@ -7,17 +7,17 @@ namespace backend.Data.Seed;
 
 public static class SeedData
 {
-    public static async Task InitializeAsync(AppDbContext db, IPasswordHasher hasher)
+    public static async Task InitializeAsync(AppDbContext db, IPasswordHasher hasher, string adminPassword)
     {
-        await db.Database.MigrateAsync();
-
-        if (!await db.Users.AnyAsync())
+        if (!await db.Users.AnyAsync(u => u.Username == "admin"))
         {
-            hasher.CreatePasswordHash("Admin@12345", out var hash, out var salt);
+            hasher.CreatePasswordHash(adminPassword, out var hash, out var salt);
             db.Users.Add(new User
             {
                 Username = "admin",
                 Email = "admin@local.test",
+                NormalizedUsername = "ADMIN",
+                NormalizedEmail = "ADMIN@LOCAL.TEST",
                 PasswordHash = hash,
                 PasswordSalt = salt,
                 Role = RoleType.Admin
@@ -37,11 +37,9 @@ public static class SeedData
                 Country = "USA"
             };
 
-            // Save the property first to get a real Id
             db.Properties.Add(prop);
             await db.SaveChangesAsync();
 
-            // Now we can satisfy the 'required PropertyId' compiler rule
             db.Units.Add(new Unit { PropertyId = prop.Id, UnitNumber = "1A", Bedrooms = 2, Bathrooms = 1, Rent = 1200, SizeSqFt = 900, IsOccupied = false });
             db.Units.Add(new Unit { PropertyId = prop.Id, UnitNumber = "1B", Bedrooms = 1, Bathrooms = 1, Rent = 900, SizeSqFt = 650, IsOccupied = false });
         }

@@ -6,7 +6,6 @@ using Moq;
 using backend.Domain.Entities;
 using backend.Dtos.Leases;
 using backend.Repositories.Ef;
-using backend.Repositories.Ef;
 using backend.Repositories.Interfaces;
 using backend.Services.Implementations;
 using backend.Services.Interfaces;
@@ -19,6 +18,7 @@ namespace backend.Tests.Services
     {
         private readonly Mock<IUnitOfWork> _uowMock = new();
         private readonly Mock<IGenericRepository<Lease>> _leaseRepoMock = new();
+        private readonly Mock<IGenericRepository<Payment>> _paymentRepoMock = new();
         private readonly Mock<IMapper> _mapperMock = new();
         private readonly Mock<IAuditLogService> _auditMock = new();
 
@@ -27,6 +27,7 @@ namespace backend.Tests.Services
         public LeaseServiceUnitTests()
         {
             _uowMock.Setup(u => u.GetRepository<Lease>()).Returns(_leaseRepoMock.Object);
+            _uowMock.Setup(u => u.GetRepository<Payment>()).Returns(_paymentRepoMock.Object);
 
             _auditMock.Setup(a =>
                 a.WriteAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int?>(), It.IsAny<string?>())
@@ -63,18 +64,12 @@ namespace backend.Tests.Services
             _uowMock.Setup(u => u.GetRepository<Unit>()).Returns(new GenericRepository<Unit>(db));
             _uowMock.Setup(u => u.GetRepository<Tenant>()).Returns(new GenericRepository<Tenant>(db));
             _uowMock.Setup(u => u.GetRepository<Lease>()).Returns(new GenericRepository<Lease>(db));
+            _mapperMock.Setup(m => m.Map<Lease>(dto)).Returns(entity);
             _mapperMock.Setup(m => m.Map<LeaseReadDto>(entity))
                 .Returns(new LeaseReadDto { Id = 10, UnitId = 1, TenantId = 1 });
-
-            _leaseRepoMock.Setup(r => r.AddAsync(entity)).Returns(Task.CompletedTask);
-            _leaseRepoMock.Setup(r => r.Query()).Returns(db.Leases);
             _uowMock.Setup(u => u.SaveChangesAsync()).ReturnsAsync(1);
 
             var service = new LeaseService(_uowMock.Object, _mapperMock.Object, _auditMock.Object);
-            _uowMock.Setup(u => u.GetRepository<Unit>()).Returns(new GenericRepository<Unit>(db));
-            _uowMock.Setup(u => u.GetRepository<Tenant>()).Returns(new GenericRepository<Tenant>(db));
-            _uowMock.Setup(u => u.GetRepository<Lease>()).Returns(new GenericRepository<Lease>(db));
-
             var result = await service.CreateAsync(dto, Actor);
 
             result.Id.Should().Be(10);
@@ -166,6 +161,7 @@ namespace backend.Tests.Services
             _uowMock.Setup(u => u.SaveChangesAsync()).ReturnsAsync(1);
 
             var db = CreateInMemoryContext(nameof(DeleteAsync_Removes_WhenFound));
+            _paymentRepoMock.Setup(r => r.Query()).Returns(db.Payments);
             var service = new LeaseService(_uowMock.Object, _mapperMock.Object, _auditMock.Object);
 
             var ok = await service.DeleteAsync(50, Actor);

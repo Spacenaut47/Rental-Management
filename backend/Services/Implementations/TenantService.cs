@@ -27,7 +27,8 @@ public class TenantService : ITenantService
         if (!string.IsNullOrWhiteSpace(search))
         {
             var s = search.Trim();
-            q = q.Where(t => t.FirstName.Contains(s) || t.LastName.Contains(s) || t.Email.Contains(s));
+            var normalized = s.ToUpperInvariant();
+            q = q.Where(t => t.FirstName.Contains(s) || t.LastName.Contains(s) || t.NormalizedEmail.Contains(normalized));
         }
         return await q.ProjectTo<TenantReadDto>(_mapper.ConfigurationProvider).ToListAsync();
     }
@@ -43,11 +44,14 @@ public class TenantService : ITenantService
 
     public async Task<TenantReadDto> CreateAsync(TenantCreateDto dto, string actor)
     {
-        var exists = await _uow.GetRepository<Tenant>().Query().AnyAsync(t => t.Email == dto.Email);
+        var normalizedEmail = dto.Email.Trim().ToUpperInvariant();
+        var exists = await _uow.GetRepository<Tenant>().Query().AnyAsync(t => t.NormalizedEmail == normalizedEmail);
         if (exists)
             throw new ArgumentException("A tenant with this email already exists.");
 
         var entity = _mapper.Map<Tenant>(dto);
+        entity.Email = dto.Email.Trim();
+        entity.NormalizedEmail = normalizedEmail;
         await _uow.GetRepository<Tenant>().AddAsync(entity);
         await _uow.SaveChangesAsync();
 
@@ -62,11 +66,14 @@ public class TenantService : ITenantService
         var existing = await repo.GetByIdAsync(id);
         if (existing is null) return null;
 
-        if (!string.Equals(existing.Email, dto.Email, StringComparison.OrdinalIgnoreCase) &&
-            await repo.Query().AnyAsync(t => t.Email == dto.Email))
+        var normalizedEmail = dto.Email.Trim().ToUpperInvariant();
+        if (!string.Equals(existing.NormalizedEmail, normalizedEmail, StringComparison.Ordinal) &&
+            await repo.Query().AnyAsync(t => t.NormalizedEmail == normalizedEmail))
             throw new ArgumentException("A tenant with this email already exists.");
 
         _mapper.Map(dto, existing);
+        existing.Email = dto.Email.Trim();
+        existing.NormalizedEmail = normalizedEmail;
         existing.UpdatedAt = DateTime.UtcNow;
 
         repo.Update(existing);

@@ -24,10 +24,16 @@ public class LeaseService : ILeaseService
     public async Task<IEnumerable<LeaseReadDto>> GetAllAsync(int? unitId = null, int? tenantId = null, bool? active = null)
     {
         var q = _uow.GetRepository<Lease>().Query().AsNoTracking();
-
         if (unitId.HasValue) q = q.Where(l => l.UnitId == unitId.Value);
         if (tenantId.HasValue) q = q.Where(l => l.TenantId == tenantId.Value);
-        if (active.HasValue) q = q.Where(l => l.IsActive == active.Value);
+
+        if (active.HasValue)
+        {
+            var now = DateTime.UtcNow;
+            q = active.Value
+                ? q.Where(l => l.IsActive && l.StartDateUtc <= now && now < l.EndDateUtc)
+                : q.Where(l => !l.IsActive || l.StartDateUtc > now || now >= l.EndDateUtc);
+        }
 
         return await q.ProjectTo<LeaseReadDto>(_mapper.ConfigurationProvider).ToListAsync();
     }
@@ -40,19 +46,17 @@ public class LeaseService : ILeaseService
 
     public async Task<LeaseReadDto> CreateAsync(LeaseCreateDto dto, string actor)
     {
-        // Ensure Unit & Tenant exist
         var unitExists = await _uow.GetRepository<Unit>().Query().AnyAsync(u => u.Id == dto.UnitId);
         if (!unitExists) throw new ArgumentException("Unit does not exist.");
+
         var tenantExists = await _uow.GetRepository<Tenant>().Query().AnyAsync(t => t.Id == dto.TenantId);
         if (!tenantExists) throw new ArgumentException("Tenant does not exist.");
 
-        // Ensure no overlapping ACTIVE lease for this unit
         var overlap = await _uow.GetRepository<Lease>().Query().AnyAsync(l =>
             l.UnitId == dto.UnitId &&
             l.IsActive &&
             l.StartDateUtc < dto.EndDateUtc &&
-            dto.StartDateUtc < l.EndDateUtc
-        );
+            dto.StartDateUtc < l.EndDateUtc);
         if (overlap) throw new InvalidOperationException("Unit already has an active overlapping lease.");
 
         var entity = _mapper.Map<Lease>(dto);
@@ -74,21 +78,20 @@ public class LeaseService : ILeaseService
 
         var unitExists = await _uow.GetRepository<Unit>().Query().AnyAsync(u => u.Id == dto.UnitId);
         if (!unitExists) throw new ArgumentException("Unit does not exist.");
+
         var tenantExists = await _uow.GetRepository<Tenant>().Query().AnyAsync(t => t.Id == dto.TenantId);
         if (!tenantExists) throw new ArgumentException("Tenant does not exist.");
 
-        if (dto.IsActive)
-        {
-            var overlap = await repo.Query().AnyAsync(l =>
-                l.Id != id &&
-                l.UnitId == dto.UnitId &&
-                l.IsActive &&
-                l.StartDateUtc < dto.EndDateUtc &&
-                dto.StartDateUtc < l.EndDateUtc);
-            if (overlap) throw new InvalidOperationException("Unit already has an active overlapping lease.");
-        }
+        var overlap = await repo.Query().AnyAsync(l =>
+            l.Id != id &&
+            l.UnitId == dto.UnitId &&
+            l.IsActive &&
+            l.StartDateUtc < dto.EndDateUtc &&
+            dto.StartDateUtc < l.EndDateUtc);
+        if (overlap) throw new InvalidOperationException("Unit already has an active overlapping lease.");
 
         _mapper.Map(dto, existing);
+        existing.IsActive = true;
         existing.UpdatedAtUtc = DateTime.UtcNow;
 
         repo.Update(existing);
@@ -104,6 +107,9 @@ public class LeaseService : ILeaseService
         var repo = _uow.GetRepository<Lease>();
         var existing = await repo.GetByIdAsync(id);
         if (existing is null) return false;
+
+        var hasPayments = await _uow.GetRepository<Payment>().Query().AnyAsync(p => p.LeaseId == id);
+        if (hasPayments) throw new InvalidOperationException("Cannot delete a lease with payment history.");
 
         repo.Remove(existing);
         await _uow.SaveChangesAsync();

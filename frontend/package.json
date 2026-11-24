@@ -7,7 +7,9 @@
     "node": ">=26.0.0"
   },
   "scripts": {
-    "dev": "vite",
+    "dev": "concurrently -k -n backend,frontend -c blue,green \"npm:backend\" \"npm:vite\"",
+    "backend": "dotnet run --project ../backend --urls http://127.0.0.1:5180",
+    "vite": "vite --host 127.0.0.1",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
@@ -16,7 +18,15 @@
     "test:headed": "playwright test --headed"
   },
   "description": "Modern React + TypeScript + Vite frontend for the Rental Management app",
-  "keywords": ["rental", "management", "react", "typescript", "vite", "redux", "tailwindcss"],
+  "keywords": [
+    "rental",
+    "management",
+    "react",
+    "typescript",
+    "vite",
+    "redux",
+    "tailwindcss"
+  ],
   "dependencies": {
     "@reduxjs/toolkit": "^2.15.0",
     "react": "^19.3.1",
@@ -32,6 +42,7 @@
     "@types/react": "^19.3.1",
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.3.0",
+    "concurrently": "^10.0.7",
     "eslint": "^10.15.0",
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.5.8",

@@ -14,12 +14,17 @@ namespace backend.Controllers;
 public class MaintenanceController : ControllerBase
 {
     private readonly IMaintenanceService _service;
-    private readonly IValidator<MaintenanceCreateDto> _validator;
+    private readonly IValidator<MaintenanceCreateDto> _createValidator;
+    private readonly IValidator<MaintenanceUpdateDto> _updateValidator;
 
-    public MaintenanceController(IMaintenanceService service, IValidator<MaintenanceCreateDto> validator)
+    public MaintenanceController(
+        IMaintenanceService service,
+        IValidator<MaintenanceCreateDto> createValidator,
+        IValidator<MaintenanceUpdateDto> updateValidator)
     {
         _service = service ?? throw new ArgumentNullException(nameof(service));
-        _validator = validator ?? throw new ArgumentNullException(nameof(validator));
+        _createValidator = createValidator ?? throw new ArgumentNullException(nameof(createValidator));
+        _updateValidator = updateValidator ?? throw new ArgumentNullException(nameof(updateValidator));
     }
 
     [HttpGet]
@@ -37,7 +42,7 @@ public class MaintenanceController : ControllerBase
     [Authorize(Policy = Policies.StaffAndUp)]
     public async Task<ActionResult<MaintenanceReadDto>> Create(MaintenanceCreateDto dto)
     {
-        var result = await _validator.ValidateAsync(dto);
+        var result = await _createValidator.ValidateAsync(dto);
         if (!result.IsValid) return BadRequest(result.Errors);
 
         var actor = User.FindFirstValue(ClaimTypes.Name) ?? "unknown";
@@ -49,6 +54,9 @@ public class MaintenanceController : ControllerBase
     [Authorize(Policy = Policies.ManagerAndUp)]
     public async Task<ActionResult<MaintenanceReadDto>> Update(int id, MaintenanceUpdateDto dto)
     {
+        var validation = await _updateValidator.ValidateAsync(dto);
+        if (!validation.IsValid) return BadRequest(validation.Errors);
+
         var actor = User.FindFirstValue(ClaimTypes.Name) ?? "unknown";
         var updated = await _service.UpdateAsync(id, dto, actor);
         return updated is null ? NotFound() : Ok(updated);

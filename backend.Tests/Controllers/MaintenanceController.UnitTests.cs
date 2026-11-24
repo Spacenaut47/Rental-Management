@@ -17,11 +17,12 @@ namespace backend.Tests.Controllers
     public class MaintenanceControllerUnitTests
     {
         private readonly Mock<IMaintenanceService> _serviceMock = new();
-        private readonly Mock<IValidator<MaintenanceCreateDto>> _validatorMock = new();
+        private readonly Mock<IValidator<MaintenanceCreateDto>> _createValidatorMock = new();
+        private readonly Mock<IValidator<MaintenanceUpdateDto>> _updateValidatorMock = new();
 
         private MaintenanceController CreateController(string actor = "testuser")
         {
-            var controller = new MaintenanceController(_serviceMock.Object, _validatorMock.Object);
+            var controller = new MaintenanceController(_serviceMock.Object, _createValidatorMock.Object, _updateValidatorMock.Object);
 
             var user = new ClaimsPrincipal(new ClaimsIdentity(new[] { new Claim(ClaimTypes.Name, actor) }, "mock"));
             controller.ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext { User = user } };
@@ -60,7 +61,7 @@ namespace backend.Tests.Controllers
         public async Task Create_ReturnsBadRequest_WhenInvalid()
         {
             var dto = new MaintenanceCreateDto { PropertyId = 1, Title = "" };
-            _validatorMock.Setup(v => v.ValidateAsync(dto, default)).ReturnsAsync(new ValidationResult(new[] { new ValidationFailure("Title", "Required") }));
+            _createValidatorMock.Setup(v => v.ValidateAsync(dto, default)).ReturnsAsync(new ValidationResult(new[] { new ValidationFailure("Title", "Required") }));
 
             var controller = CreateController();
 
@@ -75,7 +76,7 @@ namespace backend.Tests.Controllers
             var dto = new MaintenanceCreateDto { PropertyId = 1, Title = "Fix" };
             var created = new MaintenanceReadDto { Id = 1, PropertyId = 1, Title = "Fix" };
 
-            _validatorMock.Setup(v => v.ValidateAsync(dto, default)).ReturnsAsync(new ValidationResult());
+            _createValidatorMock.Setup(v => v.ValidateAsync(dto, default)).ReturnsAsync(new ValidationResult());
             _serviceMock.Setup(s => s.CreateAsync(dto, "testuser")).ReturnsAsync(created);
 
             var controller = CreateController();
@@ -92,6 +93,7 @@ namespace backend.Tests.Controllers
         public async Task Update_ReturnsNotFound_WhenMissing()
         {
             var dto = new MaintenanceUpdateDto { Title = "X" };
+            _updateValidatorMock.Setup(v => v.ValidateAsync(dto, default)).ReturnsAsync(new ValidationResult());
             _serviceMock.Setup(s => s.UpdateAsync(1, dto, "testuser")).ReturnsAsync((MaintenanceReadDto?)null);
 
             var controller = CreateController();
@@ -106,6 +108,7 @@ namespace backend.Tests.Controllers
         {
             var dto = new MaintenanceUpdateDto { Title = "X" };
             var updated = new MaintenanceReadDto { Id = 2, PropertyId = 1, Title = "X" };
+            _updateValidatorMock.Setup(v => v.ValidateAsync(dto, default)).ReturnsAsync(new ValidationResult());
 
             _serviceMock.Setup(s => s.UpdateAsync(2, dto, "testuser")).ReturnsAsync(updated);
 

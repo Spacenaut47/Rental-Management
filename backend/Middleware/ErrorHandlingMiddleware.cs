@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
@@ -29,14 +30,14 @@ public class ErrorHandlingMiddleware
                 InvalidOperationException opEx => (409, "Conflict", opEx.Message),
                 UnauthorizedAccessException => (403, "Forbidden", "You are not authorized for this operation."),
                 KeyNotFoundException => (404, "Not found", "The requested resource was not found."),
-                DbUpdateException => (409, "Conflict", "The operation conflicts with existing data."),
+                DbUpdateException dbEx when IsConstraintConflict(dbEx) => (409, "Conflict", "The operation conflicts with existing data."),
+                DbUpdateException => (500, "Internal server error", "A database error occurred."),
                 _ => (500, "Internal server error", "An unexpected error occurred.")
             };
 
             var logLevel = status is >= 500 ? LogLevel.Error : LogLevel.Warning;
             _logger.Log(logLevel, ex, "Unhandled exception");
 
-            // If response already started, rethrow so server can handle it (can't write new body)
             if (context.Response.HasStarted)
             {
                 throw;
@@ -52,4 +53,7 @@ public class ErrorHandlingMiddleware
             await context.Response.WriteAsync(json);
         }
     }
+
+    private static bool IsConstraintConflict(DbUpdateException exception)
+        => exception.InnerException is SqliteException { SqliteErrorCode: 19 };
 }

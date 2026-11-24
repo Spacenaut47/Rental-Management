@@ -7,7 +7,6 @@ using Moq;
 using backend.Domain.Entities;
 using backend.Dtos.Payments;
 using backend.Repositories.Ef;
-using backend.Repositories.Ef;
 using backend.Repositories.Interfaces;
 using backend.Services.Implementations;
 using backend.Services.Interfaces;
@@ -139,6 +138,7 @@ namespace backend.Tests.Services
         {
             // Arrange: seed payments
             var db = CreateInMemoryContext(nameof(GetTotalPaidAsync_ReturnsSum_OfPayments));
+            db.Leases.Add(new Lease { Id = 5, UnitId = 1, TenantId = 1, StartDateUtc = DateTime.UtcNow.AddDays(-1), EndDateUtc = DateTime.UtcNow.AddDays(30), IsActive = true });
             db.Payments.Add(new Payment { Id = 1, LeaseId = 5, Amount = 100m });
             db.Payments.Add(new Payment { Id = 2, LeaseId = 5, Amount = 250.75m });
             db.Payments.Add(new Payment { Id = 3, LeaseId = 9, Amount = 50m }); // different lease

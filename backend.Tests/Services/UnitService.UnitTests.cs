@@ -103,6 +103,7 @@ namespace backend.Tests.Services.UnitTests
             created.Should().NotBeNull();
             created.Id.Should().Be(42);
 
+            dbCtx.SaveChanges();
             dbCtx.Units.Count(u => u.UnitNumber == "101").Should().Be(1);
             _uowMock.Verify(u => u.SaveChangesAsync(), Times.Once);
             _auditMock.Verify(a => a.WriteAsync(Actor, "Created", nameof(Unit), 42, It.IsAny<string>()), Times.Once);

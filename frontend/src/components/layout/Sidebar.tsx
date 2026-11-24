@@ -1,6 +1,6 @@
 import { NavLink } from "react-router-dom";
 
-const visibleLinks = ["/properties", "/units", "/leases", "/payments", "/maintenance"];
+const visibleLinks = ["/properties", "/tenants", "/units", "/leases", "/payments", "/maintenance"];
 
 export default function Sidebar() {
   const link = "block rounded-lg px-3 py-2 hover:bg-gray-100";

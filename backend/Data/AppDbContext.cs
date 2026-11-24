@@ -21,10 +21,10 @@ public class AppDbContext : DbContext
         base.OnModelCreating(modelBuilder);
 
         modelBuilder.Entity<User>()
-            .HasIndex(u => u.Username)
+            .HasIndex(u => u.NormalizedUsername)
             .IsUnique();
         modelBuilder.Entity<User>()
-            .HasIndex(u => u.Email)
+            .HasIndex(u => u.NormalizedEmail)
             .IsUnique();
 
         modelBuilder.Entity<Property>()
@@ -42,7 +42,7 @@ public class AppDbContext : DbContext
             .OnDelete(DeleteBehavior.Cascade);
 
         modelBuilder.Entity<Tenant>()
-            .HasIndex(t => t.Email)
+            .HasIndex(t => t.NormalizedEmail)
             .IsUnique();
 
         modelBuilder.Entity<Lease>()

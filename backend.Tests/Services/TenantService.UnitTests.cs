@@ -5,6 +5,7 @@ using FluentAssertions;
 using Moq;
 using backend.Domain.Entities;
 using backend.Dtos.Tenants;
+using backend.Repositories.Ef;
 using backend.Repositories.Interfaces;
 using backend.Services.Implementations;
 using backend.Services.Interfaces;
@@ -44,16 +45,14 @@ namespace backend.Tests.Services.UnitTests
         {
             // Arrange
             var dto = new TenantCreateDto { FirstName = "John", LastName = "Doe", Email = "j@doe.com" };
-            var entity = new Tenant { Id = 1, FirstName = "John", LastName = "Doe", Email = "j@doe.com" };
+            var entity = new Tenant { Id = 1, FirstName = "John", LastName = "Doe", Email = "j@doe.com", NormalizedEmail = "J@DOE.COM" };
 
             var db = CreateInMemoryContext(nameof(CreateAsync_AddsTenant_WhenEmailNotExists));
-            _tenantRepoMock.Setup(r => r.Query()).Returns(db.Tenants);
-
             _mapperMock.Setup(m => m.Map<Tenant>(dto)).Returns(entity);
             _mapperMock.Setup(m => m.Map<TenantReadDto>(entity))
                 .Returns(new TenantReadDto { Id = 1, FirstName = "John", LastName = "Doe", Email = "j@doe.com" });
 
-            _tenantRepoMock.Setup(r => r.Query()).Returns(CreateInMemoryContext(nameof(CreateAsync_AddsTenant_WhenEmailNotExists)).Tenants);
+            _tenantRepoMock.Setup(r => r.Query()).Returns(db.Tenants);
             _tenantRepoMock.Setup(r => r.AddAsync(It.IsAny<Tenant>())).Returns(Task.CompletedTask);
             _uowMock.Setup(u => u.SaveChangesAsync()).ReturnsAsync(1);
 
@@ -75,8 +74,9 @@ namespace backend.Tests.Services.UnitTests
             var dto = new TenantCreateDto { FirstName = "Jane", LastName = "Smith", Email = "jane@test.com" };
 
             var db = CreateInMemoryContext(nameof(CreateAsync_Throws_WhenEmailAlreadyExists));
-            db.Tenants.Add(new Tenant { FirstName = "Existing", LastName = "User", Email = "jane@test.com" });
+            db.Tenants.Add(new Tenant { FirstName = "Existing", LastName = "User", Email = "jane@test.com", NormalizedEmail = "JANE@TEST.COM" });
             db.SaveChanges();
+            _tenantRepoMock.Setup(r => r.Query()).Returns(db.Tenants);
 
             var service = new TenantService(_uowMock.Object, _mapperMock.Object, _auditMock.Object);
 
@@ -108,12 +108,12 @@ namespace backend.Tests.Services.UnitTests
         public async Task UpdateAsync_Throws_WhenDuplicateEmail()
         {
             // Arrange
-            var existing = new Tenant { Id = 1, FirstName = "Old", LastName = "User", Email = "old@test.com" };
+            var existing = new Tenant { Id = 1, FirstName = "Old", LastName = "User", Email = "old@test.com", NormalizedEmail = "OLD@TEST.COM" };
 
             _tenantRepoMock.Setup(r => r.GetByIdAsync(existing.Id)).ReturnsAsync(existing);
 
             var db = CreateInMemoryContext(nameof(UpdateAsync_Throws_WhenDuplicateEmail));
-            db.Tenants.Add(new Tenant { Id = 2, FirstName = "Other", LastName = "User", Email = "dup@test.com" });
+            db.Tenants.Add(new Tenant { Id = 2, FirstName = "Other", LastName = "User", Email = "dup@test.com", NormalizedEmail = "DUP@TEST.COM" });
             db.SaveChanges();
             _tenantRepoMock.Setup(r => r.Query()).Returns(db.Tenants);
 
@@ -133,7 +133,7 @@ namespace backend.Tests.Services.UnitTests
         public async Task UpdateAsync_UpdatesTenant_WhenValid()
         {
             // Arrange
-            var existing = new Tenant { Id = 3, FirstName = "Old", LastName = "Name", Email = "old@test.com" };
+            var existing = new Tenant { Id = 3, FirstName = "Old", LastName = "Name", Email = "old@test.com", NormalizedEmail = "OLD@TEST.COM" };
             _tenantRepoMock.Setup(r => r.GetByIdAsync(existing.Id)).ReturnsAsync(existing);
 
             var dto = new TenantUpdateDto { FirstName = "New", LastName = "Name", Email = "old@test.com" };
@@ -191,7 +191,6 @@ namespace backend.Tests.Services.UnitTests
             _tenantRepoMock.Setup(r => r.Query()).Returns(db.Tenants);
             _uowMock.Setup(u => u.GetRepository<Lease>()).Returns(new GenericRepository<Lease>(db));
             _uowMock.Setup(u => u.GetRepository<MaintenanceRequest>()).Returns(new GenericRepository<MaintenanceRequest>(db));
-            _tenantRepoMock.Setup(r => r.Query()).Returns(db.Tenants);
             var service = new TenantService(_uowMock.Object, _mapperMock.Object, _auditMock.Object);
 
             // Act

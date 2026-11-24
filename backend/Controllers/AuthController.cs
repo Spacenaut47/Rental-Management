@@ -45,19 +45,25 @@ public class AuthController : ControllerBase
             return BadRequest(validation.Errors);
 
         var userRepo = _uow.Users;
+        var username = request.Username.Trim();
+        var email = request.Email.Trim();
+        var normalizedUsername = username.ToUpperInvariant();
+        var normalizedEmail = email.ToUpperInvariant();
 
-        if ((await userRepo.FindAsync(u => u.Username == request.Username)).Any())
+        if ((await userRepo.FindAsync(u => u.NormalizedUsername == normalizedUsername)).Any())
             return Conflict(new { message = "Username already exists." });
 
-        if ((await userRepo.FindAsync(u => u.Email == request.Email)).Any())
+        if ((await userRepo.FindAsync(u => u.NormalizedEmail == normalizedEmail)).Any())
             return Conflict(new { message = "Email already exists." });
 
         _hasher.CreatePasswordHash(request.Password, out var hash, out var salt);
 
         var user = new User
         {
-            Username = request.Username,
-            Email = request.Email,
+            Username = username,
+            Email = email,
+            NormalizedUsername = normalizedUsername,
+            NormalizedEmail = normalizedEmail,
             PasswordHash = hash,
             PasswordSalt = salt,
             // Public self-registration always creates a tenant account.
@@ -90,7 +96,9 @@ public class AuthController : ControllerBase
             return BadRequest(validation.Errors);
 
         var userRepo = _uow.Users;
-        var user = (await userRepo.FindAsync(u => u.Username == request.UsernameOrEmail || u.Email == request.UsernameOrEmail))
+        var normalizedIdentifier = request.UsernameOrEmail.Trim().ToUpperInvariant();
+        var user = (await userRepo.FindAsync(u =>
+                u.NormalizedUsername == normalizedIdentifier || u.NormalizedEmail == normalizedIdentifier))
             .FirstOrDefault();
 
         if (user is null || !_hasher.VerifyPassword(request.Password, user.PasswordHash, user.PasswordSalt))

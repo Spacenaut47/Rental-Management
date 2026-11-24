@@ -24,6 +24,8 @@ if (string.IsNullOrWhiteSpace(jwtOptions.Issuer)) throw new InvalidOperationExce
 if (string.IsNullOrWhiteSpace(jwtOptions.Audience)) throw new InvalidOperationException("Jwt:Audience must be configured.");
 if (string.IsNullOrWhiteSpace(jwtOptions.Key) || jwtOptions.Key.Length < 32)
     throw new InvalidOperationException("Jwt:Key must be at least 32 characters.");
+if (jwtOptions.AccessTokenMinutes <= 0)
+    throw new InvalidOperationException("Jwt:AccessTokenMinutes must be greater than zero.");
 if (!builder.Environment.IsDevelopment() && jwtOptions.Key.Contains("REPLACE_WITH", StringComparison.OrdinalIgnoreCase))
     throw new InvalidOperationException("Jwt:Key must be replaced with a secure value outside Development.");
 
@@ -50,7 +52,7 @@ builder.Services.AddValidatorsFromAssemblyContaining<backend.Validators.Auth.Reg
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
-        options.RequireHttpsMetadata = false; // dev only
+        options.RequireHttpsMetadata = !builder.Environment.IsDevelopment();
         options.TokenValidationParameters = new TokenValidationParameters
         {
             ValidateIssuer = true,
@@ -73,12 +75,15 @@ builder.Services.AddAuthorization(options =>
 
 // 6) CORS
 const string FrontendCors = "FrontendCors";
+var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
+    ?? ["http://localhost:5173", "http://127.0.0.1:5173"];
+
 builder.Services.AddCors(options =>
 {
     options.AddPolicy(FrontendCors, policy =>
     {
         policy
-            .WithOrigins("http://localhost:5173")
+            .WithOrigins(allowedOrigins)
             .AllowAnyHeader()
             .AllowAnyMethod()
             .AllowCredentials();
@@ -157,7 +162,11 @@ using (var scope = app.Services.CreateScope())
         await db.Database.MigrateAsync();
 
         logger.LogInformation("Running idempotent seed...");
-        await SeedData.InitializeAsync(db, hasher);
+        var adminPassword = builder.Environment.IsDevelopment()
+            ? "Admin@12345"
+            : builder.Configuration["Seed:AdminPassword"]
+                ?? throw new InvalidOperationException("Seed:AdminPassword must be configured outside Development.");
+        await SeedData.InitializeAsync(db, hasher, adminPassword);
 
         logger.LogInformation("Database setup completed successfully.");
     }

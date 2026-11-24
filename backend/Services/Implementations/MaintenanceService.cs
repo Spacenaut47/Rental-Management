@@ -61,6 +61,14 @@ public class MaintenanceService : IMaintenanceService
             var tenantExists = await _uow.GetRepository<Tenant>().Query().AnyAsync(t => t.Id == dto.TenantId.Value);
             if (!tenantExists)
                 throw new ArgumentException("Tenant does not exist.");
+
+            if (dto.UnitId.HasValue)
+            {
+                var linked = await _uow.GetRepository<Lease>().Query()
+                    .AnyAsync(l => l.TenantId == dto.TenantId.Value && l.UnitId == dto.UnitId.Value);
+                if (!linked)
+                    throw new ArgumentException("Tenant is not associated with the specified unit.");
+            }
         }
 
         var entity = _mapper.Map<MaintenanceRequest>(dto);

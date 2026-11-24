@@ -2,23 +2,16 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 
-// https://vitejs.dev/config/
 export default defineConfig({
-  plugins: [
-    react(),
-    tailwindcss(), // Tailwind v4+ plugin
-  ],
+  plugins: [react(), tailwindcss()],
   server: {
     port: 5173,
     strictPort: true,
-    // Remove https: false - HTTP is the default
     proxy: {
-      // If you want to proxy API during dev instead of CORS, uncomment:
-      // "/api": {
-      //   target: "https://localhost:7180",
-      //   changeOrigin: true,
-      //   secure: false
-      // }
-    }
+      "/api": {
+        target: "http://127.0.0.1:5180",
+        changeOrigin: true,
+      },
+    },
   },
 });

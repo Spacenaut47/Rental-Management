@@ -1,4 +1,3 @@
-// backend.Tests/Services/PropertyService.UnitTests.cs
 using System.Threading.Tasks;
 using AutoMapper;
 using FluentAssertions;
@@ -7,7 +6,6 @@ using backend.Domain.Entities;
 using backend.Dtos.Properties;
 using backend.Repositories.Ef;
 using Microsoft.EntityFrameworkCore;
-using backend.Repositories.Ef;
 using backend.Repositories.Interfaces;
 using backend.Services.Implementations;
 using Xunit;

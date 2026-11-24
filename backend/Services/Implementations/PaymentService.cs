@@ -23,6 +23,8 @@ public class PaymentService : IPaymentService
 
     public async Task<IEnumerable<PaymentReadDto>> GetForLeaseAsync(int leaseId)
     {
+        await EnsureLeaseExistsAsync(leaseId);
+
         var q = _uow.GetRepository<Payment>().Query()
             .AsNoTracking()
             .Where(p => p.LeaseId == leaseId)
@@ -35,7 +37,10 @@ public class PaymentService : IPaymentService
     {
         var lease = await _uow.GetRepository<Lease>().Query().FirstOrDefaultAsync(l => l.Id == dto.LeaseId);
         if (lease is null) throw new ArgumentException("Lease does not exist.");
-        if (!lease.IsActive) throw new InvalidOperationException("Cannot record payment on inactive lease.");
+
+        var now = DateTime.UtcNow;
+        if (!lease.IsActive || lease.StartDateUtc > now || now >= lease.EndDateUtc)
+            throw new InvalidOperationException("Cannot record payment on inactive lease.");
         if (dto.Amount <= 0) throw new ArgumentException("Amount must be positive.");
 
         var entity = _mapper.Map<Payment>(dto);
@@ -49,11 +54,17 @@ public class PaymentService : IPaymentService
 
     public async Task<decimal> GetTotalPaidAsync(int leaseId)
     {
-        var total = await _uow.GetRepository<Payment>().Query()
+        await EnsureLeaseExistsAsync(leaseId);
+
+        return await _uow.GetRepository<Payment>().Query()
             .Where(p => p.LeaseId == leaseId)
             .Select(p => p.Amount)
             .SumAsync();
+    }
 
-        return total;
+    private async Task EnsureLeaseExistsAsync(int leaseId)
+    {
+        var exists = await _uow.GetRepository<Lease>().Query().AnyAsync(l => l.Id == leaseId);
+        if (!exists) throw new KeyNotFoundException($"Lease {leaseId} does not exist.");
     }
 }
