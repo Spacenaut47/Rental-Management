@@ -1,97 +1,207 @@
-// src/pages/MaintenancePage.tsx
 import { useMemo, useState } from "react";
 import {
   useListMaintenanceQuery,
   useCreateMaintenanceMutation,
-  useDeleteMaintenanceMutation,
   useUpdateMaintenanceMutation,
+  useDeleteMaintenanceMutation,
 } from "../services/endpoints/maintenanceApi";
 import type {
   MaintenanceCreate,
   MaintenanceItem,
+  MaintenanceUpdate,
 } from "../services/endpoints/maintenanceApi";
 import { useListPropertiesQuery } from "../services/endpoints/propertiesApi";
 import { useListUnitsQuery } from "../services/endpoints/unitsApi";
 import Button from "../components/ui/Button";
+import Modal from "../components/ui/Modal";
+import PageToolbar from "../components/ui/PageToolbar";
 import RoleGate from "../features/auth/RoleGate";
 import { getErrorMessage } from "../lib/errors";
+import { newestFirst } from "../lib/sort";
+
+type Filters = { propertyId?: number; unitId?: number };
+
+type FormState = MaintenanceCreate & { status?: number };
+
+const emptyForm: FormState = { propertyId: 0, title: "", description: "", priority: 2 };
+
+function MaintenanceFields({
+  form,
+  setForm,
+  properties,
+  units,
+  editing,
+}: {
+  form: FormState;
+  setForm: (next: FormState) => void;
+  properties: Array<{ id: number; name: string }>;
+  units: Array<{ id: number; unitNumber: string; propertyId: number }>;
+  editing: boolean;
+}) {
+  const update = <K extends keyof FormState>(key: K, value: FormState[K]) =>
+    setForm({ ...form, [key]: value });
+  const unitsForProperty = units.filter((u) => u.propertyId === form.propertyId);
+
+  return (
+    <>
+      {!editing && (
+        <div className="mb-4 rounded-md border bg-gray-50 p-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="flex flex-col">
+              <label htmlFor="mnt-prop-select" className="text-sm font-medium">Property</label>
+              <select
+                id="mnt-prop-select"
+                className="rounded-md border p-2"
+                value={form.propertyId || properties[0]?.id || 0}
+                onChange={(e) => setForm({ ...form, propertyId: Number(e.target.value), unitId: undefined })}
+              >
+                {properties.map((p) => <option key={p.id} value={p.id}>#{p.id} — {p.name}</option>)}
+              </select>
+            </div>
+            <div className="flex flex-col">
+              <label htmlFor="mnt-unit-select" className="text-sm font-medium">Unit (by Property)</label>
+              <select
+                id="mnt-unit-select"
+                className="rounded-md border p-2"
+                value={form.unitId ?? ""}
+                onChange={(e) => update("unitId", e.target.value ? Number(e.target.value) : undefined)}
+              >
+                <option value="">— none —</option>
+                {unitsForProperty.map((u) => <option key={u.id} value={u.id}>#{u.id} — {u.unitNumber}</option>)}
+              </select>
+            </div>
+          </div>
+        </div>
+      )}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div className="flex flex-col">
+          <label htmlFor="mnt-title" className="text-sm font-medium">Title</label>
+          <input id="mnt-title" className="rounded-md border p-2" placeholder="Short summary" value={form.title} onChange={(e) => update("title", e.target.value)} required />
+        </div>
+        <div className="flex flex-col">
+          <label htmlFor="mnt-priority" className="text-sm font-medium">Priority</label>
+          <select id="mnt-priority" className="rounded-md border p-2" value={form.priority} onChange={(e) => update("priority", Number(e.target.value))}>
+            <option value={1}>Low</option>
+            <option value={2}>Medium</option>
+            <option value={3}>High</option>
+            <option value={4}>Urgent</option>
+          </select>
+        </div>
+        {editing && (
+          <div className="flex flex-col">
+            <label htmlFor="mnt-status" className="text-sm font-medium">Status</label>
+            <select id="mnt-status" className="rounded-md border p-2" value={form.status ?? 1} onChange={(e) => update("status", Number(e.target.value))}>
+              <option value={1}>Open</option>
+              <option value={2}>In Progress</option>
+              <option value={3}>On Hold</option>
+              <option value={4}>Resolved</option>
+            </select>
+          </div>
+        )}
+        <div className="flex flex-col sm:col-span-2">
+          <label htmlFor="mnt-desc" className="text-sm font-medium">Description</label>
+          <textarea id="mnt-desc" className="rounded-md border p-2" placeholder="Details..." value={form.description ?? ""} onChange={(e) => update("description", e.target.value)} />
+        </div>
+      </div>
+    </>
+  );
+}
 
 export default function MaintenancePage() {
-  const [filters, setFilters] = useState<{
-    propertyId?: number;
-    unitId?: number;
-  }>({});
-  const { data, isLoading, isError, refetch } =
-    useListMaintenanceQuery(filters);
+  const [filters, setFilters] = useState<Filters>({});
+  const [filterDraft, setFilterDraft] = useState<Filters>({});
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [editing, setEditing] = useState<MaintenanceItem | "new" | null>(null);
+  const [form, setForm] = useState<FormState>(emptyForm);
+  const [error, setError] = useState("");
 
+  const { data, isLoading, isError, refetch } = useListMaintenanceQuery(filters);
   const { data: propsData } = useListPropertiesQuery();
   const { data: unitsData } = useListUnitsQuery(undefined);
-
   const [createItem, { isLoading: creating }] = useCreateMaintenanceMutation();
-  const [updateItem] = useUpdateMaintenanceMutation();
+  const [updateItem, { isLoading: updating }] = useUpdateMaintenanceMutation();
   const [deleteItem] = useDeleteMaintenanceMutation();
 
-  // Local optimistic cache for created items (so they appear instantly)
-  const [optimisticItems, setOptimisticItems] = useState<MaintenanceItem[]>([]);
+  const properties = propsData ?? [];
+  const units = unitsData ?? [];
+  const items = useMemo(() => {
+    const merged = new Map<number, MaintenanceItem>();
+    (data ?? []).forEach((item) => merged.set(item.id, item));
+    return newestFirst(Array.from(merged.values()), (item) => item.createdAtUtc);
+  }, [data]);
 
-  const [form, setForm] = useState({
-    propertyId: 0,
-    unitId: undefined as number | undefined,
-    title: "",
-    description: "",
-    priority: 2,
-  });
+  const openFilter = () => {
+    setFilterDraft(filters);
+    setFilterOpen(true);
+  };
 
-  const selectedPropertyId = form.propertyId || propsData?.[0]?.id || 0;
+  const openCreate = () => {
+    setForm({ ...emptyForm, propertyId: properties[0]?.id ?? 0 });
+    setError("");
+    setEditing("new");
+  };
 
-  const unitsForProperty = useMemo(() => {
-    if (!unitsData) return [];
-    return unitsData.filter((u) => u.propertyId === Number(selectedPropertyId));
-  }, [unitsData, selectedPropertyId]);
+  const openEdit = (item: MaintenanceItem) => {
+    setForm({
+      propertyId: item.propertyId,
+      unitId: item.unitId ?? undefined,
+      title: item.title,
+      description: item.description ?? "",
+      priority: item.priority,
+      status: item.status,
+    });
+    setError("");
+    setEditing(item);
+  };
 
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const closeEditor = () => {
+    setEditing(null);
+    setError("");
+  };
 
-    const payload: MaintenanceCreate = {
-      propertyId: Number(selectedPropertyId),
-      title: form.title,
-      description: form.description,
-      priority: Number(form.priority),
-    };
-    if (form.unitId) payload.unitId = Number(form.unitId);
-
+  const submit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setError("");
     try {
-      const created = await createItem(payload).unwrap();
-      // push created item into optimistic cache so it shows immediately
-      setOptimisticItems((cur) => {
-        // avoid duplicates
-        if (cur.some((it) => it.id === created.id)) return cur;
-        return [created, ...cur];
-      });
-      // clear form fields
-      setForm((f) => ({ ...f, title: "", description: "" }));
-      // try refresh of main list (if backend invalidation works)
+      if (editing === "new") {
+        const payload: MaintenanceCreate = {
+          propertyId: form.propertyId || properties[0]?.id || 0,
+          title: form.title,
+          description: form.description,
+          priority: Number(form.priority),
+        };
+        if (form.unitId) payload.unitId = Number(form.unitId);
+        await createItem(payload).unwrap();
+      } else if (editing) {
+        const body: MaintenanceUpdate = {
+          title: form.title,
+          description: form.description,
+          priority: Number(form.priority),
+          status: Number(form.status ?? 1),
+        };
+        await updateItem({ id: editing.id, body }).unwrap();
+      }
+      closeEditor();
       await refetch();
     } catch (err) {
-      console.error("Create maintenance failed", err);
-      alert(getErrorMessage(err, "Failed to create maintenance request."));
+      setError(getErrorMessage(err, "Failed to save maintenance request."));
     }
   };
 
-  const handleMark = async (id: number, status: number, item: MaintenanceItem) => {
+  const handleMark = async (item: MaintenanceItem, status: number) => {
     try {
-      const body = {
-        title: item.title,
-        description: item.description ?? "",
-        priority: item.priority,
-        status,
-      };
-      await updateItem({ id, body }).unwrap();
-      // optimistic remove or update: simplest is to refetch
+      await updateItem({
+        id: item.id,
+        body: {
+          title: item.title,
+          description: item.description ?? "",
+          priority: item.priority,
+          status,
+        },
+      }).unwrap();
       await refetch();
     } catch (err) {
-      console.error("Update maintenance failed", err);
-      alert("Failed to update request.");
+      alert(getErrorMessage(err, "Failed to update request."));
     }
   };
 
@@ -99,295 +209,129 @@ export default function MaintenancePage() {
     if (!confirm("Delete maintenance request?")) return;
     try {
       await deleteItem(id).unwrap();
-      // remove optimistic copy if present
-      setOptimisticItems((cur) => cur.filter((it) => it.id !== id));
       await refetch();
     } catch (err) {
-      console.error("Delete maintenance failed", err);
-      alert("Failed to delete request.");
+      alert(getErrorMessage(err, "Failed to delete request."));
     }
   };
 
-  // merge server data + optimistic items and avoid duplicates by id
-  const mergedById = new Map<number, MaintenanceItem>();
-  optimisticItems.forEach((it) => mergedById.set(it.id, it));
-  (data ?? []).forEach((it) => mergedById.set(it.id, it));
-  const items = Array.from(mergedById.values());
-
   return (
     <div className="mx-auto w-full max-w-6xl p-6">
-      <div className="mb-6 flex items-end justify-between">
-        <h1 className="text-2xl font-bold">Maintenance</h1>
-        <div className="flex items-end gap-2">
-          <div className="flex flex-col">
-            <label
-              htmlFor="mnt-filter-prop"
-              className="text-xs font-medium text-gray-600"
-            >
-              Property ID
-            </label>
-            <input
-              id="mnt-filter-prop"
-              className="w-36 rounded-md border p-2"
-              placeholder="e.g., 1"
-              type="number"
-              min={1}
-              value={filters.propertyId ?? ""}
-              onChange={(e) =>
-                setFilters((f) => ({
-                  ...f,
-                  propertyId: e.target.value
-                    ? Number(e.target.value)
-                    : undefined,
-                }))
-              }
-            />
-          </div>
-          <div className="flex flex-col">
-            <label
-              htmlFor="mnt-filter-unit"
-              className="text-xs font-medium text-gray-600"
-            >
-              Unit ID
-            </label>
-            <input
-              id="mnt-filter-unit"
-              className="w-36 rounded-md border p-2"
-              placeholder="optional"
-              type="number"
-              min={1}
-              value={filters.unitId ?? ""}
-              onChange={(e) =>
-                setFilters((f) => ({
-                  ...f,
-                  unitId: e.target.value ? Number(e.target.value) : undefined,
-                }))
-              }
-            />
-          </div>
-          <Button
-            onClick={() => refetch()}
-            aria-label="Apply maintenance filters"
-          >
-            Filter
-          </Button>
-        </div>
+      <PageToolbar
+        title="Maintenance"
+        filterLabel="Filter maintenance requests"
+        onFilter={openFilter}
+        addLabel="Request"
+        onAdd={openCreate}
+      />
+
+      <div className="rounded-2xl border bg-white p-4 shadow-sm">
+        <h2 className="mb-3 text-lg font-semibold">Requests List</h2>
+        {isLoading ? (
+          <p>Loading...</p>
+        ) : isError ? (
+          <p className="text-red-600">Failed to load requests.</p>
+        ) : (
+          <ul className="divide-y">
+            {items.map((item) => (
+              <li key={item.id} className="flex items-start justify-between gap-4 py-2">
+                <div className="min-w-0 flex-1">
+                  <button
+                    type="button"
+                    aria-label={`Edit request ${item.id}`}
+                    onClick={() => openEdit(item)}
+                    className="w-full rounded-md text-left hover:opacity-80"
+                  >
+                    <div className="font-medium">
+                      #{item.id} — {item.title || "(no title)"}{" "}
+                      <span className="text-sm text-gray-500">• Priority {item.priority} • Status {item.status}</span>
+                    </div>
+                    <div className="text-sm text-gray-600">
+                      Property #{item.propertyId}{item.unitId ? ` • Unit #${item.unitId}` : ""} •{" "}
+                      {item.createdAtUtc ? new Date(item.createdAtUtc).toLocaleString() : "unknown date"}
+                    </div>
+                  </button>
+                  <RoleGate allow={["Admin", "Manager"]}>
+                    <div className="mt-2 flex gap-2">
+                      <button
+                        aria-label={`Mark request ${item.id} in progress`}
+                        onClick={() => handleMark(item, 2)}
+                        className="rounded-md px-3 py-1 text-sm text-blue-700 hover:bg-blue-50"
+                      >
+                        Mark In&nbsp;Progress
+                      </button>
+                      <button
+                        aria-label={`Mark request ${item.id} resolved`}
+                        onClick={() => handleMark(item, 4)}
+                        className="rounded-md px-3 py-1 text-sm text-green-700 hover:bg-green-50"
+                      >
+                        Mark Resolved
+                      </button>
+                    </div>
+                  </RoleGate>
+                </div>
+                <RoleGate allow={["Admin"]}>
+                  <button
+                    aria-label={`Delete request ${item.id}`}
+                    onClick={() => handleDelete(item.id)}
+                    className="rounded-md px-3 py-1 text-sm text-red-600 hover:bg-red-50"
+                  >
+                    Delete
+                  </button>
+                </RoleGate>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2">
-        <RoleGate allow={["Admin", "Manager", "Staff"]}>
-          <form
-            onSubmit={submit}
-            className="rounded-2xl border bg-white p-4 shadow-sm"
-          >
-            <h2 className="mb-3 text-lg font-semibold">
-              Create Maintenance Request
-            </h2>
-            <div className="mb-4 rounded-md border bg-gray-50 p-3">
-              <div className="mb-2 font-medium">Choose IDs (live)</div>
-
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <div className="flex flex-col">
-                  <label
-                    htmlFor="mnt-prop-select"
-                    className="text-sm font-medium"
-                  >
-                    Property
-                  </label>
-                  <select
-                    id="mnt-prop-select"
-                    className="rounded-md border p-2"
-                    value={form.propertyId}
-                    onChange={(e) =>
-                      setForm((f) => ({
-                        ...f,
-                        propertyId: Number(e.target.value),
-                      }))
-                    }
-                  >
-                    {propsData?.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        #{p.id} — {p.name}
-                      </option>
-                    ))}
-                  </select>
-                  <div className="text-xs text-gray-600 mt-1">
-                    Selected: #{form.propertyId}
-                  </div>
-                </div>
-
-                <div className="flex flex-col">
-                  <label
-                    htmlFor="mnt-unit-select"
-                    className="text-sm font-medium"
-                  >
-                    Unit (by Property)
-                  </label>
-                  <select
-                    id="mnt-unit-select"
-                    className="rounded-md border p-2"
-                    value={form.unitId ?? ""}
-                    onChange={(e) =>
-                      setForm((f) => ({
-                        ...f,
-                        unitId: e.target.value
-                          ? Number(e.target.value)
-                          : undefined,
-                      }))
-                    }
-                  >
-                    <option value="">— none —</option>
-                    {unitsForProperty.map((u) => (
-                      <option key={u.id} value={u.id}>
-                        #{u.id} — {u.unitNumber}
-                      </option>
-                    ))}
-                  </select>
-                  <div className="text-xs text-gray-600 mt-1">
-                    {form.unitId
-                      ? `Selected: #${form.unitId}`
-                      : "No unit selected"}
-                  </div>
-                </div>
-              </div>
+      <Modal open={filterOpen} title="Filter maintenance requests" onClose={() => setFilterOpen(false)}>
+        <form
+          onSubmit={(event) => {
+            event.preventDefault();
+            setFilters(filterDraft);
+            setFilterOpen(false);
+          }}
+        >
+          <div className="grid grid-cols-2 gap-3">
+            <div className="flex flex-col">
+              <label htmlFor="mnt-filter-prop" className="text-sm font-medium">Property ID</label>
+              <input id="mnt-filter-prop" className="rounded-md border p-2" type="number" min={1} placeholder="e.g., 1" value={filterDraft.propertyId ?? ""} onChange={(e) => setFilterDraft({ ...filterDraft, propertyId: e.target.value ? Number(e.target.value) : undefined })} />
             </div>
-
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <div className="flex flex-col">
-                <label htmlFor="mnt-title" className="text-sm font-medium">
-                  Title
-                </label>
-                <input
-                  id="mnt-title"
-                  className="rounded-md border p-2"
-                  placeholder="Short summary"
-                  value={form.title}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, title: e.target.value }))
-                  }
-                  required
-                />
-              </div>
-
-              <div className="flex flex-col">
-                <label htmlFor="mnt-priority" className="text-sm font-medium">
-                  Priority
-                </label>
-                <select
-                  id="mnt-priority"
-                  className="rounded-md border p-2"
-                  value={form.priority}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, priority: Number(e.target.value) }))
-                  }
-                >
-                  <option value={1}>Low</option>
-                  <option value={2}>Medium</option>
-                  <option value={3}>High</option>
-                  <option value={4}>Urgent</option>
-                </select>
-              </div>
-
-              <div className="col-span-1 sm:col-span-2 flex flex-col">
-                <label htmlFor="mnt-desc" className="text-sm font-medium">
-                  Description
-                </label>
-                <textarea
-                  id="mnt-desc"
-                  className="rounded-md border p-2"
-                  placeholder="Details..."
-                  value={form.description}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, description: e.target.value }))
-                  }
-                />
-              </div>
+            <div className="flex flex-col">
+              <label htmlFor="mnt-filter-unit" className="text-sm font-medium">Unit ID</label>
+              <input id="mnt-filter-unit" className="rounded-md border p-2" type="number" min={1} placeholder="optional" value={filterDraft.unitId ?? ""} onChange={(e) => setFilterDraft({ ...filterDraft, unitId: e.target.value ? Number(e.target.value) : undefined })} />
             </div>
+          </div>
+          <div className="mt-5 flex justify-end gap-2">
+            <Button variant="secondary" type="button" onClick={() => { setFilterDraft({}); setFilters({}); setFilterOpen(false); }}>Clear</Button>
+            <Button type="submit" aria-label="Apply maintenance filters">Apply</Button>
+          </div>
+        </form>
+      </Modal>
 
-            <div className="mt-3">
+      <RoleGate allow={["Admin", "Manager", "Staff"]}>
+        <Modal
+          open={editing !== null}
+          title={editing === "new" ? "Create maintenance request" : "Edit maintenance request"}
+          onClose={closeEditor}
+        >
+          <form onSubmit={submit}>
+            <MaintenanceFields form={form} setForm={setForm} properties={properties} units={units} editing={editing !== "new"} />
+            {error && <p role="alert" className="mt-3 text-sm text-red-600">{error}</p>}
+            <div className="mt-5 flex justify-end gap-2">
+              <Button variant="secondary" type="button" onClick={closeEditor}>Cancel</Button>
               <Button
-                disabled={creating}
-                aria-label="Create maintenance request"
+                type="submit"
+                disabled={creating || updating}
+                aria-label={editing === "new" ? "Create maintenance request" : "Save maintenance request"}
               >
-                {creating ? "Creating..." : "Create Request"}
+                {creating || updating ? "Saving..." : editing === "new" ? "Create Request" : "Save Changes"}
               </Button>
             </div>
           </form>
-        </RoleGate>
-
-        <div className="rounded-2xl border bg-white p-4 shadow-sm">
-          <h2 className="mb-3 text-lg font-semibold">
-            Requests List (IDs shown)
-          </h2>
-
-          {isLoading ? (
-            <p>Loading...</p>
-          ) : isError ? (
-            <p className="text-red-600">Failed to load.</p>
-          ) : (
-            <ul className="divide-y">
-              {items.map((m) => {
-                const { id, title, priority, status, propertyId, unitId, createdAtUtc } = m;
-                return (
-                  <li
-                    key={id}
-                    className="flex items-start justify-between gap-4 py-2"
-                  >
-                    <div>
-                      <div className="font-medium">
-                        #{id} — {title || "(no title)"}{" "}
-                        <span className="text-sm text-gray-500">
-                          • Priority {priority} • Status {status}
-                        </span>
-                      </div>
-                      <div className="text-sm text-gray-600">
-                        Property #{propertyId}
-                        {unitId ? ` • Unit #${unitId}` : ""} •{" "}
-                        {createdAtUtc
-                          ? new Date(createdAtUtc).toLocaleString()
-                          : "unknown date"}
-                      </div>
-
-                      <RoleGate allow={["Admin", "Manager"]}>
-                        <div className="mt-2 flex gap-2">
-                          <button
-                            aria-label={`Mark request ${id} in progress`}
-                            onClick={() =>
-                              id !== undefined && handleMark(id, 2, m)
-                            }
-                            className="rounded-md px-3 py-1 text-sm text-blue-700 hover:bg-blue-50"
-                          >
-                            Mark In&nbsp;Progress
-                          </button>
-                          <button
-                            aria-label={`Mark request ${id} resolved`}
-                            onClick={() =>
-                              id !== undefined && handleMark(id, 4, m)
-                            }
-                            className="rounded-md px-3 py-1 text-sm text-green-700 hover:bg-green-50"
-                          >
-                            Mark Resolved
-                          </button>
-                        </div>
-                      </RoleGate>
-                    </div>
-
-                    <RoleGate allow={["Admin"]}>
-                      <button
-                        aria-label={`Delete request ${id}`}
-                        onClick={() => id !== undefined && handleDelete(id)}
-                        className="rounded-md px-3 py-1 text-sm text-red-600 hover:bg-red-50"
-                      >
-                        Delete
-                      </button>
-                    </RoleGate>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-        </div>
-      </div>
+        </Modal>
+      </RoleGate>
     </div>
   );
 }

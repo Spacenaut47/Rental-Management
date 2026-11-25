@@ -48,7 +48,7 @@ SQLite requires no external server; `app.db` is created and migrated on startup.
   Create leases between tenants and units, track rent, deposit, and active status.
 
 - **Payments**  
-  Record and view payments linked to leases, with methods and notes, and calculate total paid.
+  Record, edit, and delete payments linked to leases, with methods and notes, and calculate total paid.
 
 - **Maintenance Requests**  
   Create and update maintenance requests, set priority and status, and link to properties, units, or tenants.
@@ -57,7 +57,7 @@ SQLite requires no external server; `app.db` is created and migrated on startup.
   Admins can view audit trails of actions performed in the system.
 
 - **Frontend UI**  
-  Responsive design with TailwindCSS, navigation via navbar and sidebar, protected routes, role-based gating of components, and small reusable UI pieces.
+  Responsive design with TailwindCSS, navigation via navbar and sidebar, protected routes, role-based gating of components, and small reusable UI pieces. Admin lists use page-specific filter dialogs, open add/edit dialogs from their toolbars and rows, and default to newest-first order.
 
 ---
 

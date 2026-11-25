@@ -11,6 +11,7 @@ export interface Unit {
   isOccupied: boolean;
 }
 export type UnitCreate = Omit<Unit, "id" | "isOccupied">;
+export type UnitUpdate = UnitCreate & { isOccupied: boolean };
 
 export const unitsApi = baseApi.injectEndpoints({
   endpoints: (b) => ({
@@ -34,7 +35,7 @@ export const unitsApi = baseApi.injectEndpoints({
       query: (body) => ({ url: "/units", method: "POST", body }),
       invalidatesTags: [{ type: "Unit", id: "LIST" }],
     }),
-    updateUnit: b.mutation<Unit, { id: number; body: UnitCreate }>({
+    updateUnit: b.mutation<Unit, { id: number; body: UnitUpdate }>({
       query: ({ id, body }) => ({ url: `/units/${id}`, method: "PUT", body }),
       invalidatesTags: (_res, _err, arg) => [{ type: "Unit", id: arg.id }],
     }),

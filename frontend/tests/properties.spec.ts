@@ -13,6 +13,7 @@ test.describe('Properties', () => {
     const name = unique('UI Property');
     await uiLogin(page);
     await page.goto('/properties');
+    await page.getByRole('button', { name: 'Add Property' }).click();
     await page.fill('#prop-name', name);
     await page.fill('#prop-addr1', '12 Main Street');
     await page.fill('#prop-city', 'Chicago');
@@ -26,6 +27,7 @@ test.describe('Properties', () => {
   test('enforces required fields in the create form', async ({ page }) => {
     await uiLogin(page);
     await page.goto('/properties');
+    await page.getByRole('button', { name: 'Add Property' }).click();
     await page.fill('#prop-name', 'Incomplete');
     await page.getByRole('button', { name: 'Create Property' }).click();
     expect(await page.locator('#prop-city').evaluate((el) => (el as HTMLInputElement).validity.valueMissing)).toBe(true);

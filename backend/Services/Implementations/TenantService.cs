@@ -30,7 +30,10 @@ public class TenantService : ITenantService
             var normalized = s.ToUpperInvariant();
             q = q.Where(t => t.FirstName.Contains(s) || t.LastName.Contains(s) || t.NormalizedEmail.Contains(normalized));
         }
-        return await q.ProjectTo<TenantReadDto>(_mapper.ConfigurationProvider).ToListAsync();
+        return await q
+            .OrderByDescending(t => t.CreatedAt)
+            .ProjectTo<TenantReadDto>(_mapper.ConfigurationProvider)
+            .ToListAsync();
     }
 
     public async Task<TenantReadDto?> GetByIdAsync(int id)

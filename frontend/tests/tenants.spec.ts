@@ -15,6 +15,7 @@ test.describe('Tenants', () => {
     const email = `${unique('ui-tenant')}@test.local`;
     await uiLogin(page);
     await page.goto('/tenants');
+    await page.getByRole('button', { name: 'Add Tenant' }).click();
     await page.fill('#tenant-firstname', 'Alice');
     await page.fill('#tenant-lastname', unique('Tester'));
     await page.fill('#tenant-email', email);
@@ -28,6 +29,7 @@ test.describe('Tenants', () => {
     const tenant = await createTenant(request, token);
     await uiLogin(page);
     await page.goto('/tenants');
+    await page.getByRole('button', { name: 'Filter tenants' }).click();
     await page.fill('#tenant-search', tenant.email);
     await page.getByRole('button', { name: 'Search tenants' }).click();
     await expect(page.locator('li', { hasText: tenant.email })).toBeVisible();

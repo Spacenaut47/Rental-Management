@@ -18,10 +18,14 @@ namespace backend.Tests.Controllers
     {
         private readonly Mock<IPaymentService> _serviceMock = new();
         private readonly Mock<IValidator<PaymentCreateDto>> _validatorMock = new();
+        private readonly Mock<IValidator<PaymentUpdateDto>> _updateValidatorMock = new();
 
         private PaymentsController CreateController(string actor = "testuser")
         {
-            var controller = new PaymentsController(_serviceMock.Object, _validatorMock.Object);
+            var controller = new PaymentsController(
+                _serviceMock.Object,
+                _validatorMock.Object,
+                _updateValidatorMock.Object);
 
             var user = new ClaimsPrincipal(new ClaimsIdentity(new[] { new Claim(ClaimTypes.Name, actor) }, "mock"));
             controller.ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext { User = user } };
@@ -92,6 +96,28 @@ namespace backend.Tests.Controllers
             createdAt.Should().NotBeNull();
             createdAt!.ActionName.Should().Be(nameof(PaymentsController.GetForLease));
             createdAt.Value.Should().BeEquivalentTo(created);
+        }
+
+        [Fact]
+        public async Task Update_ReturnsNotFound_WhenPaymentMissing()
+        {
+            var dto = new PaymentUpdateDto { Amount = 50m };
+            _updateValidatorMock.Setup(v => v.ValidateAsync(dto, default)).ReturnsAsync(new ValidationResult());
+            _serviceMock.Setup(s => s.UpdateAsync(99, dto, "testuser")).ReturnsAsync((PaymentReadDto?)null);
+
+            var result = await CreateController().Update(99, dto);
+
+            result.Result.Should().BeOfType<NotFoundResult>();
+        }
+
+        [Fact]
+        public async Task Delete_ReturnsNoContent_WhenDeleted()
+        {
+            _serviceMock.Setup(s => s.DeleteAsync(7, "testuser")).ReturnsAsync(true);
+
+            var result = await CreateController().Delete(7);
+
+            result.Should().BeOfType<NoContentResult>();
         }
     }
 }

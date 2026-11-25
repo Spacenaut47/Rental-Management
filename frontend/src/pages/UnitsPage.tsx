@@ -1,72 +1,159 @@
-// src/pages/UnitsPage.tsx
 import { useState } from "react";
 import {
   useListUnitsQuery,
   useCreateUnitMutation,
+  useUpdateUnitMutation,
   useDeleteUnitMutation,
 } from "../services/endpoints/unitsApi";
-import type { Unit } from "../services/endpoints/unitsApi";
+import type { Unit, UnitUpdate } from "../services/endpoints/unitsApi";
 import { useListPropertiesQuery } from "../services/endpoints/propertiesApi";
 import { useListLeasesQuery } from "../services/endpoints/leasesApi";
 import Button from "../components/ui/Button";
+import Modal from "../components/ui/Modal";
+import PageToolbar from "../components/ui/PageToolbar";
 import RoleGate from "../features/auth/RoleGate";
 import { getErrorMessage } from "../lib/errors";
+import { newestFirst } from "../lib/sort";
+
+const emptyForm: UnitUpdate = {
+  propertyId: 0,
+  unitNumber: "",
+  bedrooms: 0,
+  bathrooms: 0,
+  rent: 0,
+  sizeSqFt: 0,
+  isOccupied: false,
+};
+
+function UnitFields({
+  form,
+  setForm,
+  properties,
+}: {
+  form: UnitUpdate;
+  setForm: (next: UnitUpdate) => void;
+  properties: Array<{ id: number; name: string }>;
+}) {
+  const update = <K extends keyof UnitUpdate>(key: K, value: UnitUpdate[K]) =>
+    setForm({ ...form, [key]: value });
+
+  return (
+    <>
+      <div className="mb-3 rounded-md border bg-gray-50 p-3 text-sm">
+        <label htmlFor="unit-prop-select" className="mb-2 block font-medium">Property</label>
+        <select
+          id="unit-prop-select"
+          className="rounded-md border p-2"
+          value={form.propertyId || properties[0]?.id || 0}
+          onChange={(e) => update("propertyId", Number(e.target.value))}
+        >
+          {properties.map((p) => (
+            <option key={p.id} value={p.id}>#{p.id} — {p.name}</option>
+          ))}
+        </select>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div className="flex flex-col">
+          <label htmlFor="unit-number" className="text-sm font-medium">Unit Number</label>
+          <input id="unit-number" className="rounded-md border p-2" value={form.unitNumber} onChange={(e) => update("unitNumber", e.target.value)} placeholder="e.g., 2A" required />
+        </div>
+        <div className="flex flex-col">
+          <label htmlFor="unit-bedrooms" className="text-sm font-medium">Bedrooms</label>
+          <input id="unit-bedrooms" className="rounded-md border p-2" type="number" min={0} value={form.bedrooms} onChange={(e) => update("bedrooms", Number(e.target.value))} />
+        </div>
+        <div className="flex flex-col">
+          <label htmlFor="unit-bathrooms" className="text-sm font-medium">Bathrooms</label>
+          <input id="unit-bathrooms" className="rounded-md border p-2" type="number" min={0} value={form.bathrooms} onChange={(e) => update("bathrooms", Number(e.target.value))} />
+        </div>
+        <div className="flex flex-col">
+          <label htmlFor="unit-rent" className="text-sm font-medium">Monthly Rent (₹)</label>
+          <input id="unit-rent" className="rounded-md border p-2" type="number" min={0} step="0.01" value={form.rent} onChange={(e) => update("rent", Number(e.target.value))} />
+        </div>
+        <div className="flex flex-col">
+          <label htmlFor="unit-size" className="text-sm font-medium">Size (sqft)</label>
+          <input id="unit-size" className="rounded-md border p-2" type="number" min={0} value={form.sizeSqFt} onChange={(e) => update("sizeSqFt", Number(e.target.value))} />
+        </div>
+      </div>
+    </>
+  );
+}
 
 export default function UnitsPage() {
-  const [propertyId, setPid] = useState<string>("");
+  const [propertyId, setPropertyId] = useState<string>("");
+  const [filterDraft, setFilterDraft] = useState("");
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [editing, setEditing] = useState<Unit | "new" | null>(null);
+  const [form, setForm] = useState<UnitUpdate>(emptyForm);
+  const [error, setError] = useState("");
+
   const { data, isLoading, isError, refetch } = useListUnitsQuery(
     propertyId ? { propertyId: Number(propertyId) } : undefined
   );
-
-  // fetch leases so we can compute occupancy on the frontend
-  const { data: leasesData, refetch: refetchLeases } = useListLeasesQuery(undefined);
-
+  const { data: leasesData } = useListLeasesQuery(undefined);
   const { data: propsData } = useListPropertiesQuery();
-
   const [createUnit, { isLoading: creating }] = useCreateUnitMutation();
+  const [updateUnit, { isLoading: updating }] = useUpdateUnitMutation();
   const [deleteUnit] = useDeleteUnitMutation();
 
-  // optimistic items for newly created units
-  const [optimisticUnits, setOptimisticUnits] = useState<Unit[]>([]);
+  const properties = propsData ?? [];
+  const units = newestFirst(data ?? [], () => undefined);
+  const leases = leasesData ?? [];
+  const unitsWithOccupancy = units.map((unit) => ({
+    ...unit,
+    isOccupied: unit.isOccupied || leases.some((l) => l.unitId === unit.id && l.isActive),
+  }));
 
-  const [form, setForm] = useState({
-    propertyId: 0,
-    unitNumber: "",
-    bedrooms: 0,
-    bathrooms: 0,
-    rent: 0,
-    sizeSqFt: 0,
-  });
+  const openFilter = () => {
+    setFilterDraft(propertyId);
+    setFilterOpen(true);
+  };
 
-  const selectedPropertyId = form.propertyId || propsData?.[0]?.id || 0;
+  const openCreate = () => {
+    setForm({ ...emptyForm, propertyId: properties[0]?.id ?? 0 });
+    setError("");
+    setEditing("new");
+  };
 
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const openEdit = (unit: Unit) => {
+    setForm({
+      propertyId: unit.propertyId,
+      unitNumber: unit.unitNumber,
+      bedrooms: unit.bedrooms,
+      bathrooms: unit.bathrooms,
+      rent: unit.rent,
+      sizeSqFt: unit.sizeSqFt,
+      isOccupied: unit.isOccupied,
+    });
+    setError("");
+    setEditing(unit);
+  };
 
-    if (!selectedPropertyId || !propsData?.some((p) => p.id === selectedPropertyId)) {
-      alert("Please select a valid Property before creating a Unit.");
+  const closeEditor = () => {
+    setEditing(null);
+    setError("");
+  };
+
+  const submit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    const body = {
+      ...form,
+      propertyId: form.propertyId || properties[0]?.id || 0,
+    };
+    if (!body.propertyId) {
+      setError("Create a property before adding a unit.");
       return;
     }
-
+    setError("");
     try {
-      // create unit once and wait for result
-      const created = await createUnit({ ...form, propertyId: Number(selectedPropertyId) }).unwrap();
-
-      // push to optimistic list (if backend list hasn't updated yet)
-      setOptimisticUnits((cur) => {
-        if (cur.some((u) => u.id === created.id)) return cur;
-        return [created, ...cur];
-      });
-
-      // reset create form (keep property selection)
-      setForm((f) => ({ ...f, unitNumber: "", bedrooms: 0, bathrooms: 0, rent: 0, sizeSqFt: 0 }));
-
-      // refresh server list & leases so occupancy is recalculated
+      if (editing === "new") {
+        await createUnit(body).unwrap();
+      } else if (editing) {
+        await updateUnit({ id: editing.id, body }).unwrap();
+      }
+      closeEditor();
       await refetch();
-      await refetchLeases();
     } catch (err) {
-      console.error("Create unit failed", err);
-      alert(getErrorMessage(err, "Failed to create unit."));
+      setError(getErrorMessage(err, "Failed to save unit."));
     }
   };
 
@@ -74,127 +161,107 @@ export default function UnitsPage() {
     if (!confirm("Delete unit?")) return;
     try {
       await deleteUnit(id).unwrap();
-      // remove optimistic copy if present
-      setOptimisticUnits((cur) => cur.filter((u) => u.id !== id));
       await refetch();
-      await refetchLeases();
     } catch (err) {
-      console.error("Delete unit failed", err);
-      alert("Failed to delete unit.");
+      alert(getErrorMessage(err, "Failed to delete unit."));
     }
   };
 
-  // merge server + optimistic units
-  const serverUnits = data ?? [];
-  const merged = new Map<number, Unit>();
-  optimisticUnits.forEach((u) => merged.set(u.id, u));
-  serverUnits.forEach((u) => merged.set(u.id, u));
-  const units = Array.from(merged.values());
-
-  // compute displayed occupancy using leases (active leases mean occupied)
-  const leases = leasesData ?? [];
-  const unitsWithComputedOccupancy = units.map((u) => {
-    const occupiedBecauseOfLease = leases.some((l) => l.unitId === u.id && l.isActive);
-    return { ...u, isOccupied: Boolean(u.isOccupied) || occupiedBecauseOfLease };
-  });
-
   return (
     <div className="mx-auto w-full max-w-6xl p-6">
-      <div className="mb-6 flex items-end justify-between">
-        <h1 className="text-2xl font-bold">Units</h1>
-        <div className="flex items-end gap-2">
+      <PageToolbar
+        title="Units"
+        filterLabel="Filter units"
+        onFilter={openFilter}
+        addLabel="Unit"
+        onAdd={openCreate}
+      />
+
+      <div className="rounded-2xl border bg-white p-4 shadow-sm">
+        <h2 className="mb-3 text-lg font-semibold">Units List</h2>
+        {isLoading ? (
+          <p>Loading...</p>
+        ) : isError ? (
+          <p className="text-red-600">Failed to load units.</p>
+        ) : (
+          <ul className="divide-y">
+            {unitsWithOccupancy.map((unit) => (
+              <li key={unit.id} className="flex items-center justify-between gap-4 py-2">
+                <button
+                  type="button"
+                  aria-label={`Edit unit ${unit.unitNumber}`}
+                  onClick={() => openEdit(unit)}
+                  className="min-w-0 flex-1 rounded-md text-left hover:opacity-80"
+                >
+                  <div className="font-medium">Unit #{unit.id} — {unit.unitNumber} • Property #{unit.propertyId}</div>
+                  <div className="text-sm text-gray-600">
+                    {unit.bedrooms} br / {unit.bathrooms} ba • ₹{unit.rent} • {unit.sizeSqFt} sqft • {unit.isOccupied ? "Occupied" : "Vacant"}
+                  </div>
+                </button>
+                <RoleGate allow={["Admin"]}>
+                  <button
+                    aria-label={`Delete unit ${unit.unitNumber}`}
+                    onClick={() => handleDelete(unit.id)}
+                    className="rounded-md px-3 py-1 text-sm text-red-600 hover:bg-red-50"
+                  >
+                    Delete
+                  </button>
+                </RoleGate>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
+      <Modal open={filterOpen} title="Filter units" onClose={() => setFilterOpen(false)}>
+        <form
+          onSubmit={(event) => {
+            event.preventDefault();
+            setPropertyId(filterDraft);
+            setFilterOpen(false);
+          }}
+        >
           <div className="flex flex-col">
-            <label htmlFor="units-filter-propertyId" className="text-xs font-medium text-gray-600">
-              Filter by Property ID
-            </label>
+            <label htmlFor="units-filter-propertyId" className="text-sm font-medium">Property ID</label>
             <input
               id="units-filter-propertyId"
-              className="w-40 rounded-md border p-2"
-              value={propertyId}
-              onChange={(e) => setPid(e.target.value)}
+              className="rounded-md border p-2"
               type="number"
               min={1}
               placeholder="e.g., 1"
+              value={filterDraft}
+              onChange={(e) => setFilterDraft(e.target.value)}
             />
           </div>
-          <Button onClick={() => { refetch(); refetchLeases(); }} aria-label="Apply property filter">
-            Filter
-          </Button>
-        </div>
-      </div>
+          <div className="mt-5 flex justify-end gap-2">
+            <Button variant="secondary" type="button" onClick={() => { setFilterDraft(""); setPropertyId(""); setFilterOpen(false); }}>Clear</Button>
+            <Button type="submit" aria-label="Apply property filter">Apply</Button>
+          </div>
+        </form>
+      </Modal>
 
-      <div className="grid gap-6 md:grid-cols-2">
-        <RoleGate allow={["Admin", "Manager"]}>
-          <form onSubmit={submit} className="rounded-2xl border bg-white p-4 shadow-sm">
-            <h2 className="mb-3 text-lg font-semibold">Create Unit</h2>
-
-            <div className="mb-3 rounded-md border bg-gray-50 p-3 text-sm">
-              <div className="mb-2 font-medium">Choose Property</div>
-              <div className="flex items-center gap-2">
-                <select
-                  id="unit-prop-select"
-                  className="rounded-md border p-2"
-                  value={selectedPropertyId}
-                  onChange={(e) => setForm({ ...form, propertyId: Number(e.target.value) })}
-                >
-                  {propsData?.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      #{p.id} — {p.name}
-                    </option>
-                  ))}
-                </select>
-                <span className="text-xs text-gray-600">Selected: Property #{selectedPropertyId}</span>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div className="flex flex-col">
-                <label htmlFor="unit-number" className="text-sm font-medium">Unit Number</label>
-                <input id="unit-number" className="rounded-md border p-2" value={form.unitNumber} onChange={(e) => setForm({ ...form, unitNumber: e.target.value })} placeholder="e.g., 2A" required />
-              </div>
-              <div className="flex flex-col">
-                <label htmlFor="unit-bedrooms" className="text-sm font-medium">Bedrooms</label>
-                <input id="unit-bedrooms" className="rounded-md border p-2" type="number" min={0} value={form.bedrooms} onChange={(e) => setForm({ ...form, bedrooms: Number(e.target.value) })} />
-              </div>
-              <div className="flex flex-col">
-                <label htmlFor="unit-bathrooms" className="text-sm font-medium">Bathrooms</label>
-                <input id="unit-bathrooms" className="rounded-md border p-2" type="number" min={0} value={form.bathrooms} onChange={(e) => setForm({ ...form, bathrooms: Number(e.target.value) })} />
-              </div>
-              <div className="flex flex-col">
-                <label htmlFor="unit-rent" className="text-sm font-medium">Monthly Rent (₹)</label>
-                <input id="unit-rent" className="rounded-md border p-2" type="number" min={0} step="0.01" value={form.rent} onChange={(e) => setForm({ ...form, rent: Number(e.target.value) })} />
-              </div>
-              <div className="flex flex-col">
-                <label htmlFor="unit-size" className="text-sm font-medium">Size (sqft)</label>
-                <input id="unit-size" className="rounded-md border p-2" type="number" min={0} value={form.sizeSqFt} onChange={(e) => setForm({ ...form, sizeSqFt: Number(e.target.value) })} />
-              </div>
-            </div>
-            <div className="mt-3">
-              <Button disabled={creating} aria-label="Create unit">{creating ? "Creating..." : "Create Unit"}</Button>
+      <RoleGate allow={["Admin", "Manager"]}>
+        <Modal
+          open={editing !== null}
+          title={editing === "new" ? "Create unit" : "Edit unit"}
+          onClose={closeEditor}
+        >
+          <form onSubmit={submit}>
+            <UnitFields form={form} setForm={setForm} properties={properties} />
+            {error && <p role="alert" className="mt-3 text-sm text-red-600">{error}</p>}
+            <div className="mt-5 flex justify-end gap-2">
+              <Button variant="secondary" type="button" onClick={closeEditor}>Cancel</Button>
+              <Button
+                type="submit"
+                disabled={creating || updating}
+                aria-label={editing === "new" ? "Create Unit" : "Save Unit"}
+              >
+                {creating || updating ? "Saving..." : editing === "new" ? "Create Unit" : "Save Changes"}
+              </Button>
             </div>
           </form>
-        </RoleGate>
-
-        <div className="rounded-2xl border bg-white p-4 shadow-sm">
-          <h2 className="mb-3 text-lg font-semibold">Units List (IDs shown)</h2>
-          {isLoading ? <p>Loading...</p> : isError ? <p className="text-red-600">Failed to load units.</p> : (
-            <ul className="divide-y">
-              {unitsWithComputedOccupancy.map((u) => (
-                <li key={u.id} className="flex items-center justify-between gap-4 py-2">
-                  <div>
-                    <div className="font-medium">Unit #{u.id} — {u.unitNumber} • Property #{u.propertyId}</div>
-                    <div className="text-sm text-gray-600">{u.bedrooms} br / {u.bathrooms} ba • ₹{u.rent} • {u.sizeSqFt} sqft • {u.isOccupied ? "Occupied" : "Vacant"}</div>
-                  </div>
-                  <RoleGate allow={["Admin"]}>
-                    <button aria-label={`Delete unit ${u.unitNumber}`} className="rounded-md px-3 py-1 text-sm text-red-600 hover:bg-red-50" onClick={() => handleDelete(u.id)}>Delete</button>
-                  </RoleGate>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-      </div>
+        </Modal>
+      </RoleGate>
     </div>
   );
 }
-

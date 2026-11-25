@@ -52,6 +52,34 @@ public class PaymentService : IPaymentService
         return _mapper.Map<PaymentReadDto>(entity);
     }
 
+    public async Task<PaymentReadDto?> UpdateAsync(int id, PaymentUpdateDto dto, string actor)
+    {
+        var repo = _uow.GetRepository<Payment>();
+        var entity = await repo.GetByIdAsync(id);
+        if (entity is null) return null;
+        if (dto.Amount <= 0) throw new ArgumentException("Amount must be positive.");
+
+        _mapper.Map(dto, entity);
+        repo.Update(entity);
+        await _uow.SaveChangesAsync();
+
+        await _audit.WriteAsync(actor, "Updated", nameof(Payment), id, $"Payment {entity.Amount} updated");
+        return _mapper.Map<PaymentReadDto>(entity);
+    }
+
+    public async Task<bool> DeleteAsync(int id, string actor)
+    {
+        var repo = _uow.GetRepository<Payment>();
+        var entity = await repo.GetByIdAsync(id);
+        if (entity is null) return false;
+
+        repo.Remove(entity);
+        await _uow.SaveChangesAsync();
+
+        await _audit.WriteAsync(actor, "Deleted", nameof(Payment), id, $"Payment {id} deleted");
+        return true;
+    }
+
     public async Task<decimal> GetTotalPaidAsync(int leaseId)
     {
         await EnsureLeaseExistsAsync(leaseId);

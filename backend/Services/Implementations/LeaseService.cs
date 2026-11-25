@@ -26,6 +26,7 @@ public class LeaseService : ILeaseService
         var q = _uow.GetRepository<Lease>().Query().AsNoTracking();
         if (unitId.HasValue) q = q.Where(l => l.UnitId == unitId.Value);
         if (tenantId.HasValue) q = q.Where(l => l.TenantId == tenantId.Value);
+        q = q.OrderByDescending(l => l.CreatedAtUtc);
 
         if (active.HasValue)
         {

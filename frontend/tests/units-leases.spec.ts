@@ -22,6 +22,7 @@ test.describe('Units and leases', () => {
 
     await uiLogin(page);
     await page.goto('/units');
+    await page.getByRole('button', { name: 'Add Unit' }).click();
     await page.selectOption('#unit-prop-select', String(property.id));
     await page.fill('#unit-number', number);
     await page.fill('#unit-bedrooms', '3');
@@ -39,6 +40,7 @@ test.describe('Units and leases', () => {
 
     await uiLogin(page);
     await page.goto('/units');
+    await page.getByRole('button', { name: 'Filter units' }).click();
     await page.fill('#units-filter-propertyId', String(property.id));
     await page.getByRole('button', { name: 'Apply property filter' }).click();
     await expect(page.locator('li', { hasText: unit.unitNumber })).toBeVisible();
@@ -64,6 +66,7 @@ test.describe('Units and leases', () => {
 
     await uiLogin(page);
     await page.goto('/leases');
+    await page.getByRole('button', { name: 'Add Lease' }).click();
     await page.selectOption('#lease-unit-select', String(unit.id));
     await page.selectOption('#lease-tenant-select', String(tenant.id));
     await page.fill('#lease-start', futureStart());

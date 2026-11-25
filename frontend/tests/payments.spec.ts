@@ -23,7 +23,10 @@ test.describe('Payments', () => {
 
     await uiLogin(page);
     await page.goto('/payments');
+    await page.getByRole('button', { name: 'Filter payments' }).click();
     await page.selectOption('#payments-leaseId', String(lease.id));
+    await page.getByRole('button', { name: 'Load payments' }).click();
+    await page.getByRole('button', { name: 'Add Payment' }).click();
     await page.fill('#payment-amount', '321.50');
     await page.selectOption('#payment-method', '2');
     await page.fill('#payment-ref', 'CARD-TEST');
@@ -38,6 +41,7 @@ test.describe('Payments', () => {
     const lease = await leaseFixture(request, token);
     await uiLogin(page);
     await page.goto('/payments');
+    await page.getByRole('button', { name: 'Filter payments' }).click();
     await expect(page.locator('#payments-leaseId', { has: page.locator(`option[value="${lease.id}"]`) })).toBeVisible();
   });
 
@@ -58,6 +62,48 @@ test.describe('Payments', () => {
 
     const total = await request.get(`/api/payments/lease/${lease.id}/total`, { headers: authHeaders(token) });
     expect(await total.json()).toBe(450.25);
+  });
+
+  test('updates and deletes a payment through the API', async ({ request }) => {
+    const token = await apiLogin(request);
+    const lease = await leaseFixture(request, token);
+    const create = await request.post('/api/payments', {
+      headers: authHeaders(token),
+      data: { leaseId: lease.id, amount: 100, method: 1 },
+    });
+    const payment = await create.json();
+
+    const update = await request.put(`/api/payments/${payment.id}`, {
+      headers: authHeaders(token),
+      data: { amount: 275.5, method: 2, reference: 'UPDATED', notes: 'edited' },
+    });
+    expect(update.status(), await update.text()).toBe(200);
+    const updated = await update.json();
+    expect(updated.amount).toBe(275.5);
+    expect(updated.reference).toBe('UPDATED');
+
+    const total = await request.get(`/api/payments/lease/${lease.id}/total`, { headers: authHeaders(token) });
+    expect(await total.json()).toBe(275.5);
+
+    expect((await request.delete(`/api/payments/${payment.id}`, { headers: authHeaders(token) })).status()).toBe(204);
+    const remaining = await request.get(`/api/payments/lease/${lease.id}`, { headers: authHeaders(token) });
+    expect(await remaining.json()).toEqual([]);
+  });
+
+  test('rejects invalid payment updates and missing ids', async ({ request }) => {
+    const token = await apiLogin(request);
+    const invalid = await request.put('/api/payments/999999', {
+      headers: authHeaders(token),
+      data: { amount: 0, method: 1 },
+    });
+    expect(invalid.status()).toBe(400);
+
+    const missing = await request.put('/api/payments/999999', {
+      headers: authHeaders(token),
+      data: { amount: 10, method: 1 },
+    });
+    expect(missing.status()).toBe(404);
+    expect((await request.delete('/api/payments/999999', { headers: authHeaders(token) })).status()).toBe(404);
   });
 
   test('rejects non-positive amounts and missing leases', async ({ request }) => {
@@ -122,5 +168,7 @@ test.describe('Payments', () => {
   test('protects payment endpoints', async ({ request }) => {
     expect((await request.get('/api/payments/lease/1')).status()).toBe(401);
     expect((await request.post('/api/payments', { data: {} })).status()).toBe(401);
+    expect((await request.put('/api/payments/1', { data: {} })).status()).toBe(401);
+    expect((await request.delete('/api/payments/1')).status()).toBe(401);
   });
 });

@@ -18,6 +18,7 @@ test.describe('Maintenance', () => {
 
     await uiLogin(page);
     await page.goto('/maintenance');
+    await page.getByRole('button', { name: 'Add Request' }).click();
     await page.selectOption('#mnt-prop-select', String(property.id));
     await page.fill('#mnt-title', title);
     await page.fill('#mnt-desc', 'No heat in the living room.');
@@ -46,6 +47,7 @@ test.describe('Maintenance', () => {
 
     await uiLogin(page);
     await page.goto('/maintenance');
+    await page.getByRole('button', { name: 'Filter maintenance' }).click();
     await page.fill('#mnt-filter-prop', String(property.id));
     await page.fill('#mnt-filter-unit', String(unit.id));
     await page.getByRole('button', { name: 'Apply maintenance filters' }).click();

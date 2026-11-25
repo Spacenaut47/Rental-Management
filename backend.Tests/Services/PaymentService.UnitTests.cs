@@ -154,5 +154,43 @@ namespace backend.Tests.Services
             // Assert
             total.Should().Be(350.75m);
         }
+
+        [Fact]
+        public async Task UpdateAsync_ChangesAmount_AndWritesAudit()
+        {
+            var db = CreateInMemoryContext(nameof(UpdateAsync_ChangesAmount_AndWritesAudit));
+            var payment = new Payment { Id = 8, LeaseId = 5, Amount = 100m };
+            db.Payments.Add(payment);
+            db.SaveChanges();
+
+            _uowMock.Setup(u => u.GetRepository<Payment>()).Returns(new GenericRepository<Payment>(db));
+            _mapperMock.Setup(m => m.Map(It.IsAny<PaymentUpdateDto>(), payment))
+                .Callback<PaymentUpdateDto, Payment>((dto, entity) => entity.Amount = dto.Amount);
+            _mapperMock.Setup(m => m.Map<PaymentReadDto>(payment))
+                .Returns(new PaymentReadDto { Id = 8, LeaseId = 5, Amount = 250m });
+
+            var service = new PaymentService(_uowMock.Object, _mapperMock.Object, _auditMock.Object);
+            var dto = new PaymentUpdateDto { Amount = 250m };
+
+            var updated = await service.UpdateAsync(8, dto, Actor);
+
+            updated!.Amount.Should().Be(250m);
+            _auditMock.Verify(a => a.WriteAsync(Actor, "Updated", nameof(Payment), 8, It.IsAny<string>()), Times.Once);
+        }
+
+        [Fact]
+        public async Task DeleteAsync_RemovesPayment_WhenFound()
+        {
+            var db = CreateInMemoryContext(nameof(DeleteAsync_RemovesPayment_WhenFound));
+            db.Payments.Add(new Payment { Id = 9, LeaseId = 5, Amount = 10m });
+            db.SaveChanges();
+
+            _uowMock.Setup(u => u.GetRepository<Payment>()).Returns(new GenericRepository<Payment>(db));
+
+            var service = new PaymentService(_uowMock.Object, _mapperMock.Object, _auditMock.Object);
+
+            (await service.DeleteAsync(9, Actor)).Should().BeTrue();
+            _auditMock.Verify(a => a.WriteAsync(Actor, "Deleted", nameof(Payment), 9, It.IsAny<string>()), Times.Once);
+        }
     }
 }

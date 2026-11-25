@@ -24,6 +24,7 @@ public class PropertyService : IPropertyService
         return await _uow.Properties
             .Query()
             .AsNoTracking()
+            .OrderByDescending(p => p.CreatedAt)
             .ProjectTo<PropertyReadDto>(_mapper.ConfigurationProvider)
             .ToListAsync();
     }

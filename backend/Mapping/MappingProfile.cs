@@ -40,6 +40,7 @@ public class MappingProfile : Profile
         // Payments
         CreateMap<Payment, PaymentReadDto>();
         CreateMap<PaymentCreateDto, Payment>();
+        CreateMap<PaymentUpdateDto, Payment>();
 
         // Maintenance
         CreateMap<MaintenanceRequest, MaintenanceReadDto>();

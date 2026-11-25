@@ -26,7 +26,10 @@ public class UnitService : IUnitService
         var query = _uow.Units.Query().AsNoTracking();
         if (propertyId.HasValue)
             query = query.Where(u => u.PropertyId == propertyId.Value);
-        return await query.ProjectTo<UnitReadDto>(_mapper.ConfigurationProvider).ToListAsync();
+        return await query
+            .OrderByDescending(u => u.Id)
+            .ProjectTo<UnitReadDto>(_mapper.ConfigurationProvider)
+            .ToListAsync();
     }
 
     public async Task<UnitReadDto?> GetByIdAsync(int id)

@@ -20,6 +20,7 @@ test.describe('Audit log', () => {
 
     await uiLogin(page);
     await page.goto('/admin/audit');
+    await page.getByRole('button', { name: /^Filter/ }).click();
     await page.fill('#audit-entity', 'MaintenanceRequest');
     await page.getByRole('button', { name: 'Apply audit filter' }).click();
     const items = page.locator('ul > li');

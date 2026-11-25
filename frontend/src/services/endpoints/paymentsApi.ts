@@ -16,6 +16,13 @@ export interface PaymentCreate {
   reference?: string;
   notes?: string;
 }
+export interface PaymentUpdate {
+  amount: number;
+  method: number;
+  reference?: string;
+  notes?: string;
+}
+export type PaymentMutation = { id: number; leaseId: number; body: PaymentUpdate };
 
 export const paymentsApi = baseApi.injectEndpoints({
   endpoints: (b) => ({
@@ -40,6 +47,20 @@ export const paymentsApi = baseApi.injectEndpoints({
         { type: "Payment", id: `TOTAL-${body.leaseId}` },
       ],
     }),
+    updatePayment: b.mutation<Payment, PaymentMutation>({
+      query: ({ id, body }) => ({ url: `/payments/${id}`, method: "PUT", body }),
+      invalidatesTags: (_r, _e, { leaseId }) => [
+        { type: "Payment", id: `LEASE-${leaseId}` },
+        { type: "Payment", id: `TOTAL-${leaseId}` },
+      ],
+    }),
+    deletePayment: b.mutation<void, Omit<PaymentMutation, "body">>({
+      query: ({ id }) => ({ url: `/payments/${id}`, method: "DELETE" }),
+      invalidatesTags: (_r, _e, { leaseId }) => [
+        { type: "Payment", id: `LEASE-${leaseId}` },
+        { type: "Payment", id: `TOTAL-${leaseId}` },
+      ],
+    }),
   }),
 });
 
@@ -47,4 +68,6 @@ export const {
   useListPaymentsForLeaseQuery,
   useTotalPaidForLeaseQuery,
   useCreatePaymentMutation,
+  useUpdatePaymentMutation,
+  useDeletePaymentMutation,
 } = paymentsApi;

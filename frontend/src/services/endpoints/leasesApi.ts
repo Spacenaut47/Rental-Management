@@ -9,15 +9,14 @@ export interface Lease {
   monthlyRent: number;
   securityDeposit: number;
   isActive: boolean;
+  createdAtUtc: string;
 }
 export interface LeaseCreate
-  extends Omit<Lease, "id" | "isActive" | "startDateUtc" | "endDateUtc"> {
+  extends Omit<Lease, "id" | "isActive" | "startDateUtc" | "endDateUtc" | "createdAtUtc"> {
   startDateUtc: string; // ISO
   endDateUtc: string;   // ISO
 }
-export interface LeaseUpdate extends LeaseCreate {
-  isActive: boolean;
-}
+export type LeaseUpdate = LeaseCreate;
 
 export const leasesApi = baseApi.injectEndpoints({
   endpoints: (b) => ({
