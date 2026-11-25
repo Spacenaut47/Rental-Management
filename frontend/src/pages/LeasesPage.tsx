@@ -147,11 +147,11 @@ export default function LeasesPage() {
               </div>
               <div className="flex flex-col">
                 <label htmlFor="lease-rent" className="text-sm font-medium">Monthly Rent (₹)</label>
-                <input id="lease-rent" className="rounded-md border p-2" type="number" min={0} value={form.monthlyRent} onChange={(e) => setForm({ ...form, monthlyRent: Number(e.target.value) })} />
+                <input id="lease-rent" className="rounded-md border p-2" type="number" min={0} step="0.01" value={form.monthlyRent} onChange={(e) => setForm({ ...form, monthlyRent: Number(e.target.value) })} />
               </div>
               <div className="flex flex-col">
                 <label htmlFor="lease-deposit" className="text-sm font-medium">Security Deposit (₹)</label>
-                <input id="lease-deposit" className="rounded-md border p-2" type="number" min={0} value={form.securityDeposit} onChange={(e) => setForm({ ...form, securityDeposit: Number(e.target.value) })} />
+                <input id="lease-deposit" className="rounded-md border p-2" type="number" min={0} step="0.01" value={form.securityDeposit} onChange={(e) => setForm({ ...form, securityDeposit: Number(e.target.value) })} />
               </div>
             </div>
             <div className="mt-3">

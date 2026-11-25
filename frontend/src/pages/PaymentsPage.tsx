@@ -82,7 +82,7 @@ export default function PaymentsPage() {
             <div className="grid grid-cols-2 gap-3">
               <div className="flex flex-col">
                 <label htmlFor="payment-amount" className="text-sm font-medium">Amount (₹)</label>
-                <input id="payment-amount" className="rounded-md border p-2" placeholder="Amount" type="number" min={1} value={form.amount} onChange={(e)=>setForm({...form, amount:Number(e.target.value)})}/>
+                <input id="payment-amount" className="rounded-md border p-2" placeholder="Amount" type="number" min={0.01} step="0.01" value={form.amount} onChange={(e)=>setForm({...form, amount:Number(e.target.value)})}/>
               </div>
               <div className="flex flex-col">
                 <label htmlFor="payment-method" className="text-sm font-medium">Method</label>

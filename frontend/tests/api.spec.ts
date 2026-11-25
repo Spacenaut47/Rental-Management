@@ -7,7 +7,7 @@ test.describe('API contract', () => {
     expect(response.status()).toBe(200);
     const spec = await response.json();
     expect(spec.info.title).toBe('Rental Management API');
-    expect(spec.paths['/api/auth/login']).toBeTruthy();
+    expect(spec.paths['/api/Auth/login']).toBeTruthy();
     expect(spec.components.securitySchemes.Bearer.scheme).toBe('bearer');
   });
 

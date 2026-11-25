@@ -162,7 +162,7 @@ export default function UnitsPage() {
               </div>
               <div className="flex flex-col">
                 <label htmlFor="unit-rent" className="text-sm font-medium">Monthly Rent (₹)</label>
-                <input id="unit-rent" className="rounded-md border p-2" type="number" min={0} value={form.rent} onChange={(e) => setForm({ ...form, rent: Number(e.target.value) })} />
+                <input id="unit-rent" className="rounded-md border p-2" type="number" min={0} step="0.01" value={form.rent} onChange={(e) => setForm({ ...form, rent: Number(e.target.value) })} />
               </div>
               <div className="flex flex-col">
                 <label htmlFor="unit-size" className="text-sm font-medium">Size (sqft)</label>

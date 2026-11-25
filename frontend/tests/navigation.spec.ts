@@ -22,8 +22,9 @@ test.describe('Navigation and shell', () => {
 
   test('shows every section link after login', async ({ page }) => {
     await uiLogin(page);
+    const sidebar = page.locator('aside');
     for (const label of ['Properties', 'Tenants', 'Units', 'Leases', 'Payments', 'Maintenance', 'Audit']) {
-      await expect(page.getByRole('link', { name: label, exact: true })).toBeVisible();
+      await expect(sidebar.getByRole('link', { name: label, exact: true })).toBeVisible();
     }
   });
 
