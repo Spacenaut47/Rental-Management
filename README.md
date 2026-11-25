@@ -1,7 +1,7 @@
 # Rental Management — Fullstack
 
 A fullstack rental/property management system.  
-Backend is built with ASP.NET Core (.NET 10), Entity Framework Core, and SQL Server.  
+Backend is built with ASP.NET Core (.NET 10), Entity Framework Core, and SQLite.
 Frontend is built with React, TypeScript, Redux Toolkit, RTK Query, and TailwindCSS.
 
 ---
@@ -28,7 +28,8 @@ Audit logging is included for important actions, and data is validated both on t
 
 - [.NET SDK 10](https://dotnet.microsoft.com/download) (the exact SDK is pinned in `global.json`)
 - [Node.js 26](https://nodejs.org/) (see `frontend/.nvmrc`; run `nvm use` in `frontend/`)
-- SQL Server instance reachable via the `DefaultConnection` connection string in `backend/appsettings.json`
+
+SQLite requires no external server; `app.db` is created and migrated on startup.
 
 ---
 
@@ -76,7 +77,7 @@ Policies enforce these roles at the API level, while the frontend also gates fea
 ## API
 
 The backend exposes REST endpoints for authentication, properties, units, tenants, leases, payments, maintenance, and audit logs.  
-Swagger UI is available in development for exploring endpoints.  
+In development, the OpenAPI document is served at `/openapi/v1.json` and the Scalar API reference at `/scalar/v1`.
 Each controller corresponds to a domain (e.g. `PropertiesController`, `TenantsController`) and supports standard CRUD operations.
 
 ---
@@ -96,8 +97,7 @@ Each controller corresponds to a domain (e.g. `PropertiesController`, `TenantsCo
 - Uses **Redux Toolkit** for state management and **RTK Query** for API calls.  
 - Features include login, register, protected routes, dashboards, and CRUD pages for all main entities.  
 - Role-based UI components hide or show features based on the logged-in user’s role.  
-- Styled with **TailwindCSS**, ensuring clean and accessible UI.  
-- Includes debugging helpers such as a fixed panel to display token, user, and role information.
+- Styled with **TailwindCSS**, ensuring clean and accessible UI.
 
 ---
 
@@ -115,9 +115,41 @@ Each controller corresponds to a domain (e.g. `PropertiesController`, `TenantsCo
 
 ---
 
+## Running locally
+
+```bash
+# Backend + frontend together (from the repository root)
+cd frontend
+npm install
+npm run dev
+
+# Backend only
+dotnet run --project backend --urls http://127.0.0.1:5180
+```
+
+Vite runs on `http://127.0.0.1:5173` and proxies `/api` to the backend.
+Development seeds an administrator account: `admin` / `Admin@12345`.
+
+---
+
+## Testing
+
+```bash
+# Backend unit and integration tests
+dotnet test --project backend.Tests/backend.Tests.csproj
+
+# Frontend unit tests (Vitest + Testing Library)
+cd frontend
+npm run test:unit
+
+# Frontend end-to-end tests (Playwright)
+npm run test:e2e
+```
+
+---
+
 ## Notes
 
 - Backend and frontend are decoupled but live in the same repository.  
-- The frontend communicates with the backend through a configured API base URL.  
-- SQL Server is used by default, but the backend can be adapted to other databases if needed.  
+- The frontend communicates with the backend through the `/api` base URL.
 - JWT secret keys and configuration are set in the backend configuration files.  
