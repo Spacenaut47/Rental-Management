@@ -43,7 +43,7 @@ export default function Modal({ open, title, onClose, children, wide = false }: 
 
   return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4 backdrop-blur-sm"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) onClose();
       }}
@@ -53,22 +53,20 @@ export default function Modal({ open, title, onClose, children, wide = false }: 
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className={`max-h-[90vh] w-full overflow-y-auto rounded-2xl bg-white p-5 shadow-xl ${
-          wide ? "max-w-3xl" : "max-w-lg"
-        }`}
+        className={`panel max-h-[90vh] w-full overflow-y-auto ${wide ? "max-w-3xl" : "max-w-lg"}`}
       >
-        <div className="mb-4 flex items-center justify-between">
+        <div className="flex items-center justify-between border-b border-line px-5 py-4">
           <h2 id={titleId} className="text-lg font-semibold">{title}</h2>
           <button
             type="button"
             aria-label="Close dialog"
             onClick={onClose}
-            className="rounded-md p-1 text-gray-500 hover:bg-gray-100"
+            className="rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
           >
             <X className="h-5 w-5" aria-hidden="true" />
           </button>
         </div>
-        {children}
+        <div className="p-5">{children}</div>
       </div>
     </div>,
     document.body

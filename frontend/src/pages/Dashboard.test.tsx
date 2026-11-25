@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { screen } from "@testing-library/react";
 import Dashboard from "./Dashboard";
 import { renderWithProviders } from "../test/utils";
@@ -13,6 +13,17 @@ const quickLinks: Array<[string, string]> = [
 ];
 
 describe("Dashboard", () => {
+  beforeEach(() => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response("[]", { status: 200, headers: { "Content-Type": "application/json" } }))
+    );
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
   it("renders the welcome message", () => {
     renderWithProviders(<Dashboard />);
 

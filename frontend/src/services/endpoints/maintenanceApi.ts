@@ -52,7 +52,10 @@ export const maintenanceApi = baseApi.injectEndpoints({
     }),
     updateMaintenance: b.mutation<MaintenanceItem, { id: number; body: MaintenanceUpdate }>({
       query: ({ id, body }) => ({ url: `/maintenance/${id}`, method: "PUT", body }),
-      invalidatesTags: (_r, _e, a) => [{ type: "Maintenance", id: a.id }],
+      invalidatesTags: (_r, _e, a) => [
+        { type: "Maintenance", id: a.id },
+        { type: "Maintenance", id: "LIST" },
+      ],
     }),
     deleteMaintenance: b.mutation<void, number>({
       query: (id) => ({ url: `/maintenance/${id}`, method: "DELETE" }),

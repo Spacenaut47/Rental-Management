@@ -43,7 +43,10 @@ export const leasesApi = baseApi.injectEndpoints({
     }),
     updateLease: b.mutation<Lease, { id: number; body: LeaseUpdate }>({
       query: ({ id, body }) => ({ url: `/leases/${id}`, method: "PUT", body }),
-      invalidatesTags: (_res, _err, arg) => [{ type: "Lease", id: arg.id }],
+      invalidatesTags: (_res, _err, arg) => [
+        { type: "Lease", id: arg.id },
+        { type: "Lease", id: "LIST" },
+      ],
     }),
     deleteLease: b.mutation<void, number>({
       query: (id) => ({ url: `/leases/${id}`, method: "DELETE" }),

@@ -19,8 +19,8 @@ export default function PageToolbar({
   addDisabled,
 }: PageToolbarProps) {
   return (
-    <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-      <h1 className="text-2xl font-bold">{title}</h1>
+    <div className="mb-6 flex flex-wrap items-end justify-between gap-4 border-b border-line pb-4">
+      <h1 className="text-2xl font-semibold tracking-tight text-slate-900">{title}</h1>
       <div className="flex items-center gap-2">
         <Button
           variant="secondary"

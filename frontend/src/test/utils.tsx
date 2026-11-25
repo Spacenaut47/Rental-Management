@@ -5,6 +5,7 @@ import type { ReactElement } from "react";
 import { Provider } from "react-redux";
 import { MemoryRouter } from "react-router-dom";
 import authReducer from "../features/auth/authSlice";
+import { baseApi } from "../services/baseApi";
 import type { AuthState, AuthUser, Role } from "../types/auth";
 
 type Options = {
@@ -27,8 +28,9 @@ export function authState(role: Role, overrides: Partial<AuthUser> = {}): AuthSt
 
 export function makeStore(auth?: AuthState) {
   return configureStore({
-    reducer: { auth: authReducer },
+    reducer: { auth: authReducer, [baseApi.reducerPath]: baseApi.reducer },
     preloadedState: auth ? { auth } : undefined,
+    middleware: (getDefaultMiddleware) => getDefaultMiddleware().concat(baseApi.middleware),
   });
 }
 

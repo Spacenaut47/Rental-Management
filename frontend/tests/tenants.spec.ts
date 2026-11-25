@@ -4,6 +4,7 @@ import {
   apiLogin,
   authHeaders,
   createLease,
+  createProperty,
   createTenant,
   createUnit,
   uiLogin,
@@ -91,8 +92,8 @@ test.describe('Tenants', () => {
   test('blocks deleting a tenant referenced by a lease', async ({ request }) => {
     const token = await apiLogin(request);
     const tenant = await createTenant(request, token);
-    const property = await request.get('/api/properties', { headers: authHeaders(token) }).then((r) => r.json());
-    const unit = await createUnit(request, token, property[0].id);
+    const property = await createProperty(request, token);
+    const unit = await createUnit(request, token, property.id);
     const lease = await createLease(request, token, unit.id, tenant.id);
 
     const blocked = await request.delete(`/api/tenants/${tenant.id}`, { headers: authHeaders(token) });

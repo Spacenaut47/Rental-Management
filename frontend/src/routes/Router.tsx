@@ -19,7 +19,7 @@ export default function Router() {
   const authenticated = Boolean(useAppSelector((s) => s.auth.token));
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen bg-canvas">
       <Navbar />
       <div className={`mx-auto grid max-w-6xl grid-cols-1 ${authenticated ? "md:grid-cols-[16rem_1fr]" : ""}`}>
         {authenticated ? <Sidebar /> : null}

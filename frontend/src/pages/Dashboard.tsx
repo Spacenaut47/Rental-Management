@@ -8,6 +8,11 @@ import {
   Wrench,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import StatCard from "../components/ui/StatCard";
+import { useListLeasesQuery } from "../services/endpoints/leasesApi";
+import { useListPropertiesQuery } from "../services/endpoints/propertiesApi";
+import { useListTenantsQuery } from "../services/endpoints/tenantsApi";
+import { useListUnitsQuery } from "../services/endpoints/unitsApi";
 
 type QuickLink = {
   to: string;
@@ -26,24 +31,74 @@ const quickLinks: QuickLink[] = [
 ];
 
 export default function Dashboard() {
-  return (
-    <div className="p-6">
-      <h1 className="mb-3 text-2xl font-bold">Dashboard</h1>
-      <p className="text-gray-600">Welcome! Use the sidebar to navigate.</p>
+  const { data: properties } = useListPropertiesQuery();
+  const { data: tenants } = useListTenantsQuery();
+  const { data: units } = useListUnitsQuery();
+  const { data: leases } = useListLeasesQuery();
 
-      <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+  const stats = [
+    {
+      label: "Properties",
+      value: properties?.length,
+      hint: properties ? "Managed locations" : "Loading…",
+      icon: Building2,
+    },
+    {
+      label: "Tenants",
+      value: tenants?.length,
+      hint: tenants ? "Registered people" : "Loading…",
+      icon: Users,
+    },
+    {
+      label: "Occupied units",
+      value: units?.filter((unit) => unit.isOccupied).length,
+      hint: units ? `${units.length} total units` : "Loading…",
+      icon: DoorOpen,
+    },
+    {
+      label: "Active leases",
+      value: leases?.filter((lease) => lease.isActive).length,
+      hint: leases ? "Current agreements" : "Loading…",
+      icon: FileText,
+    },
+  ];
+
+  return (
+    <div className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
+      <div className="mb-6 flex flex-wrap items-end justify-between gap-3 border-b border-line pb-4">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight text-slate-900">Dashboard</h1>
+          <p className="mt-1 text-sm text-slate-500">Welcome! Use the sidebar to navigate.</p>
+        </div>
+        <span className="rounded-full bg-brand-soft px-3 py-1 text-xs font-medium text-brand-dark">
+          Rental operations
+        </span>
+      </div>
+
+      <section aria-label="Workspace summary" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        {stats.map((stat) => (
+          <StatCard key={stat.label} {...stat} />
+        ))}
+      </section>
+
+      <div className="mb-3 mt-8 flex items-center justify-between">
+        <h2 className="text-sm font-semibold uppercase tracking-widest text-slate-400">Quick actions</h2>
+        <span className="text-xs text-slate-400">Open a section</span>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {quickLinks.map(({ to, label, description, icon: Icon }) => (
           <Link
             key={to}
             to={to}
-            className="group flex items-start gap-3 rounded-2xl border bg-white p-4 shadow-sm transition hover:border-[var(--color-brand)] hover:shadow-md"
+            className="panel group flex items-start gap-3 p-4 transition hover:border-brand/40 hover:shadow-md"
           >
-            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-gray-100 text-gray-500 transition-colors group-hover:bg-[var(--color-brand)] group-hover:text-white">
+            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-brand-soft text-brand-dark transition group-hover:bg-brand group-hover:text-white">
               <Icon className="h-5 w-5" aria-hidden="true" />
             </span>
             <span>
-              <span className="block font-medium">{label}</span>
-              <span className="block text-sm text-gray-600">{description}</span>
+              <span className="block font-medium text-slate-900">{label}</span>
+              <span className="block text-sm text-slate-500">{description}</span>
             </span>
           </Link>
         ))}

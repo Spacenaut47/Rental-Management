@@ -23,7 +23,10 @@ export const propertiesApi = baseApi.injectEndpoints({
     }),
     updateProperty: build.mutation<Property, { id: number; body: PropertyCreate }>({
       query: ({ id, body }) => ({ url: `/properties/${id}`, method: "PUT", body }),
-      invalidatesTags: (_res, _err, args) => [{ type: "Property", id: args.id }],
+      invalidatesTags: (_res, _err, args) => [
+        { type: "Property", id: args.id },
+        { type: "Property", id: "LIST" },
+      ],
     }),
     deleteProperty: build.mutation<void, number>({
       query: (id) => ({ url: `/properties/${id}`, method: "DELETE" }),

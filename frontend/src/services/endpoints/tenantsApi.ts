@@ -38,7 +38,10 @@ export const tenantsApi = baseApi.injectEndpoints({
     }),
     updateTenant: b.mutation<Tenant, { id: number; body: TenantCreate }>({
       query: ({ id, body }) => ({ url: `/tenants/${id}`, method: "PUT", body }),
-      invalidatesTags: (_res, _err, arg) => [{ type: "Tenant", id: arg.id }],
+      invalidatesTags: (_res, _err, arg) => [
+        { type: "Tenant", id: arg.id },
+        { type: "Tenant", id: "LIST" },
+      ],
     }),
     deleteTenant: b.mutation<void, number>({
       query: (id) => ({ url: `/tenants/${id}`, method: "DELETE" }),

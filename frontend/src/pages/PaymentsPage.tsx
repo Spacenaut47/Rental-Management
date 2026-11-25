@@ -14,6 +14,7 @@ import PageToolbar from "../components/ui/PageToolbar";
 import RoleGate from "../features/auth/RoleGate";
 import { getErrorMessage } from "../lib/errors";
 import { newestFirst } from "../lib/sort";
+import { useDismissedIds } from "../hooks/useDismissedIds";
 
 const methods = ["Cash", "Card", "Bank Transfer", "Cheque", "Online Gateway"];
 
@@ -35,11 +36,11 @@ function PaymentFields({
 
   return (
     <div className="grid grid-cols-2 gap-3">
-      <div className="flex flex-col">
-        <label htmlFor="payment-amount" className="text-sm font-medium">Amount (₹)</label>
+      <div className="field">
+        <label htmlFor="payment-amount" className="field-label">Amount (₹)</label>
         <input
           id="payment-amount"
-          className="rounded-md border p-2"
+          className="field-input"
           type="number"
           min={0.01}
           step="0.01"
@@ -47,11 +48,11 @@ function PaymentFields({
           onChange={(e) => update("amount", Number(e.target.value))}
         />
       </div>
-      <div className="flex flex-col">
-        <label htmlFor="payment-method" className="text-sm font-medium">Method</label>
+      <div className="field">
+        <label htmlFor="payment-method" className="field-label">Method</label>
         <select
           id="payment-method"
-          className="rounded-md border p-2"
+          className="field-input"
           value={form.method}
           onChange={(e) => update("method", Number(e.target.value))}
         >
@@ -60,21 +61,21 @@ function PaymentFields({
           ))}
         </select>
       </div>
-      <div className="flex flex-col">
-        <label htmlFor="payment-ref" className="text-sm font-medium">Reference (optional)</label>
+      <div className="field">
+        <label htmlFor="payment-ref" className="field-label">Reference (optional)</label>
         <input
           id="payment-ref"
-          className="rounded-md border p-2"
+          className="field-input"
           placeholder="e.g., NEFT-9485"
           value={form.reference ?? ""}
           onChange={(e) => update("reference", e.target.value)}
         />
       </div>
-      <div className="flex flex-col">
-        <label htmlFor="payment-notes" className="text-sm font-medium">Notes (optional)</label>
+      <div className="field">
+        <label htmlFor="payment-notes" className="field-label">Notes (optional)</label>
         <input
           id="payment-notes"
-          className="rounded-md border p-2"
+          className="field-input"
           placeholder="Add a note"
           value={form.notes ?? ""}
           onChange={(e) => update("notes", e.target.value)}
@@ -96,7 +97,7 @@ export default function PaymentsPage() {
   const { data: leasesData } = useListLeasesQuery(undefined);
   const leases = leasesData ?? [];
   const selectedLeaseId = leaseId || leases[0]?.id || 0;
-  const { data, isLoading, isError, refetch } = useListPaymentsForLeaseQuery(selectedLeaseId, {
+  const { data, isLoading, isError } = useListPaymentsForLeaseQuery(selectedLeaseId, {
     skip: !selectedLeaseId,
   });
   const { data: total } = useTotalPaidForLeaseQuery(selectedLeaseId, {
@@ -105,17 +106,19 @@ export default function PaymentsPage() {
   const [createPayment, { isLoading: creating }] = useCreatePaymentMutation();
   const [updatePayment, { isLoading: updating }] = useUpdatePaymentMutation();
   const [deletePayment] = useDeletePaymentMutation();
+  const { dismiss, isDismissed } = useDismissedIds();
 
   const payments = useMemo(() => {
+    const visible = (data ?? []).filter((payment) => !isDismissed(payment.id));
     const term = search.trim().toLowerCase();
     const matches = !term
-      ? data ?? []
-      : (data ?? []).filter((p) =>
+      ? visible
+      : visible.filter((p) =>
           [p.reference, p.notes, methodName(p.method)]
             .some((value) => value?.toLowerCase().includes(term))
         );
     return newestFirst(matches, (payment) => payment.paidOnUtc);
-  }, [data, search]);
+  }, [data, search, isDismissed]);
 
   const openFilter = () => {
     setFilterDraft({ leaseId: selectedLeaseId, search });
@@ -159,7 +162,6 @@ export default function PaymentsPage() {
         }).unwrap();
       }
       closeEditor();
-      await refetch();
     } catch (err) {
       setError(getErrorMessage(err, "Failed to save payment."));
     }
@@ -169,14 +171,14 @@ export default function PaymentsPage() {
     if (!confirm("Delete payment?")) return;
     try {
       await deletePayment({ id, leaseId: selectedLeaseId }).unwrap();
-      await refetch();
+      dismiss(id);
     } catch (err) {
       alert(getErrorMessage(err, "Failed to delete payment."));
     }
   };
 
   return (
-    <div className="mx-auto w-full max-w-6xl p-6">
+    <div className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
       <PageToolbar
         title="Payments"
         filterLabel="Filter payments"
@@ -185,27 +187,30 @@ export default function PaymentsPage() {
         onAdd={openCreate}
       />
 
-      <div className="rounded-2xl border bg-white p-4 shadow-sm">
-        <h2 className="mb-1 text-lg font-semibold">Payments for Lease #{selectedLeaseId}</h2>
-        <div className="mb-3 text-sm text-gray-600">Total paid: ₹{total ?? 0}</div>
+      <div className="panel">
+        <h2 className="panel-title">
+          <span>Payments for Lease #{selectedLeaseId}</span>
+          <span aria-hidden="true" className="sort-hint">Newest first</span>
+        </h2>
+        <div className="border-b border-line px-5 py-3 text-sm text-slate-500">Total paid: ₹{total ?? 0}</div>
         {isLoading ? (
-          <p>Loading...</p>
+          <p className="state-loading">Loading…</p>
         ) : isError ? (
-          <p className="text-red-600">Failed to load payments.</p>
+          <p className="state-error">Failed to load payments.</p>
         ) : (
-          <ul className="divide-y">
+          <ul className="list">
             {payments.map((payment) => (
-              <li key={payment.id} className="flex items-center justify-between gap-4 py-2">
+              <li key={payment.id} className="list-row">
                 <button
                   type="button"
                   aria-label={`Edit payment ${payment.id}`}
                   onClick={() => openEdit(payment)}
-                  className="min-w-0 flex-1 rounded-md text-left hover:opacity-80"
+                  className="list-row-start"
                 >
-                  <div className="font-medium">
+                  <div className="row-title">
                     Payment #{payment.id} — ₹{payment.amount} • {methodName(payment.method)}
                   </div>
-                  <div className="text-sm text-gray-600">
+                  <div className="row-meta">
                     {new Date(payment.paidOnUtc).toLocaleString()} {payment.reference ? `• ${payment.reference}` : ""} {payment.notes ? `• ${payment.notes}` : ""}
                   </div>
                 </button>
@@ -213,7 +218,7 @@ export default function PaymentsPage() {
                   <button
                     aria-label={`Delete payment ${payment.id}`}
                     onClick={() => handleDelete(payment.id)}
-                    className="rounded-md px-3 py-1 text-sm text-red-600 hover:bg-red-50"
+                    className="row-action"
                   >
                     Delete
                   </button>
@@ -234,11 +239,11 @@ export default function PaymentsPage() {
           }}
         >
           <div className="grid grid-cols-2 gap-3">
-            <div className="col-span-2 flex flex-col">
-              <label htmlFor="payments-leaseId" className="text-sm font-medium">Lease</label>
+            <div className="col-span-2 field">
+              <label htmlFor="payments-leaseId" className="field-label">Lease</label>
               <select
                 id="payments-leaseId"
-                className="rounded-md border p-2"
+                className="field-input"
                 value={filterDraft.leaseId || leases[0]?.id || 0}
                 onChange={(e) => setFilterDraft({ ...filterDraft, leaseId: Number(e.target.value) })}
               >
@@ -249,18 +254,18 @@ export default function PaymentsPage() {
                 ))}
               </select>
             </div>
-            <div className="col-span-2 flex flex-col">
-              <label htmlFor="payment-filter-search" className="text-sm font-medium">Reference or notes</label>
+            <div className="col-span-2 field">
+              <label htmlFor="payment-filter-search" className="field-label">Reference or notes</label>
               <input
                 id="payment-filter-search"
-                className="rounded-md border p-2"
+                className="field-input"
                 placeholder="e.g., CARD-TEST"
                 value={filterDraft.search}
                 onChange={(e) => setFilterDraft({ ...filterDraft, search: e.target.value })}
               />
             </div>
           </div>
-          <div className="mt-5 flex justify-end gap-2">
+          <div className="form-actions">
             <Button variant="secondary" type="button" onClick={() => { setFilterDraft({ leaseId, search: "" }); setSearch(""); setFilterOpen(false); }}>Clear</Button>
             <Button type="submit" aria-label="Load payments">Apply</Button>
           </div>
@@ -274,10 +279,10 @@ export default function PaymentsPage() {
           onClose={closeEditor}
         >
           <form onSubmit={submit}>
-            <div className="mb-3 text-sm text-gray-600">Lease #{selectedLeaseId}</div>
+            <div className="border-b border-line px-5 py-3 text-sm text-slate-500">Lease #{selectedLeaseId}</div>
             <PaymentFields form={form} setForm={setForm} />
             {error && <p role="alert" className="mt-3 text-sm text-red-600">{error}</p>}
-            <div className="mt-5 flex justify-end gap-2">
+            <div className="form-actions">
               <Button variant="secondary" type="button" onClick={closeEditor}>Cancel</Button>
               <Button
                 type="submit"

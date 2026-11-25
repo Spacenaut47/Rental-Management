@@ -18,6 +18,7 @@ import PageToolbar from "../components/ui/PageToolbar";
 import RoleGate from "../features/auth/RoleGate";
 import { getErrorMessage } from "../lib/errors";
 import { newestFirst } from "../lib/sort";
+import { useDismissedIds } from "../hooks/useDismissedIds";
 
 type Filters = { propertyId?: number; unitId?: number };
 
@@ -47,22 +48,22 @@ function MaintenanceFields({
       {!editing && (
         <div className="mb-4 rounded-md border bg-gray-50 p-3">
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <div className="flex flex-col">
-              <label htmlFor="mnt-prop-select" className="text-sm font-medium">Property</label>
+            <div className="field">
+              <label htmlFor="mnt-prop-select" className="field-label">Property</label>
               <select
                 id="mnt-prop-select"
-                className="rounded-md border p-2"
+                className="field-input"
                 value={form.propertyId || properties[0]?.id || 0}
                 onChange={(e) => setForm({ ...form, propertyId: Number(e.target.value), unitId: undefined })}
               >
                 {properties.map((p) => <option key={p.id} value={p.id}>#{p.id} — {p.name}</option>)}
               </select>
             </div>
-            <div className="flex flex-col">
-              <label htmlFor="mnt-unit-select" className="text-sm font-medium">Unit (by Property)</label>
+            <div className="field">
+              <label htmlFor="mnt-unit-select" className="field-label">Unit (by Property)</label>
               <select
                 id="mnt-unit-select"
-                className="rounded-md border p-2"
+                className="field-input"
                 value={form.unitId ?? ""}
                 onChange={(e) => update("unitId", e.target.value ? Number(e.target.value) : undefined)}
               >
@@ -74,13 +75,13 @@ function MaintenanceFields({
         </div>
       )}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <div className="flex flex-col">
-          <label htmlFor="mnt-title" className="text-sm font-medium">Title</label>
-          <input id="mnt-title" className="rounded-md border p-2" placeholder="Short summary" value={form.title} onChange={(e) => update("title", e.target.value)} required />
+        <div className="field">
+          <label htmlFor="mnt-title" className="field-label">Title</label>
+          <input id="mnt-title" className="field-input" placeholder="Short summary" value={form.title} onChange={(e) => update("title", e.target.value)} required />
         </div>
-        <div className="flex flex-col">
-          <label htmlFor="mnt-priority" className="text-sm font-medium">Priority</label>
-          <select id="mnt-priority" className="rounded-md border p-2" value={form.priority} onChange={(e) => update("priority", Number(e.target.value))}>
+        <div className="field">
+          <label htmlFor="mnt-priority" className="field-label">Priority</label>
+          <select id="mnt-priority" className="field-input" value={form.priority} onChange={(e) => update("priority", Number(e.target.value))}>
             <option value={1}>Low</option>
             <option value={2}>Medium</option>
             <option value={3}>High</option>
@@ -88,9 +89,9 @@ function MaintenanceFields({
           </select>
         </div>
         {editing && (
-          <div className="flex flex-col">
-            <label htmlFor="mnt-status" className="text-sm font-medium">Status</label>
-            <select id="mnt-status" className="rounded-md border p-2" value={form.status ?? 1} onChange={(e) => update("status", Number(e.target.value))}>
+          <div className="field">
+            <label htmlFor="mnt-status" className="field-label">Status</label>
+            <select id="mnt-status" className="field-input" value={form.status ?? 1} onChange={(e) => update("status", Number(e.target.value))}>
               <option value={1}>Open</option>
               <option value={2}>In Progress</option>
               <option value={3}>On Hold</option>
@@ -98,9 +99,9 @@ function MaintenanceFields({
             </select>
           </div>
         )}
-        <div className="flex flex-col sm:col-span-2">
-          <label htmlFor="mnt-desc" className="text-sm font-medium">Description</label>
-          <textarea id="mnt-desc" className="rounded-md border p-2" placeholder="Details..." value={form.description ?? ""} onChange={(e) => update("description", e.target.value)} />
+        <div className="field sm:col-span-2">
+          <label htmlFor="mnt-desc" className="field-label">Description</label>
+          <textarea id="mnt-desc" className="field-input" placeholder="Details..." value={form.description ?? ""} onChange={(e) => update("description", e.target.value)} />
         </div>
       </div>
     </>
@@ -115,20 +116,23 @@ export default function MaintenancePage() {
   const [form, setForm] = useState<FormState>(emptyForm);
   const [error, setError] = useState("");
 
-  const { data, isLoading, isError, refetch } = useListMaintenanceQuery(filters);
+  const { data, isLoading, isError } = useListMaintenanceQuery(filters);
   const { data: propsData } = useListPropertiesQuery();
   const { data: unitsData } = useListUnitsQuery(undefined);
   const [createItem, { isLoading: creating }] = useCreateMaintenanceMutation();
   const [updateItem, { isLoading: updating }] = useUpdateMaintenanceMutation();
   const [deleteItem] = useDeleteMaintenanceMutation();
+  const { dismiss, isDismissed } = useDismissedIds();
 
   const properties = propsData ?? [];
   const units = unitsData ?? [];
   const items = useMemo(() => {
     const merged = new Map<number, MaintenanceItem>();
-    (data ?? []).forEach((item) => merged.set(item.id, item));
+    (data ?? []).forEach((item) => {
+      if (!isDismissed(item.id)) merged.set(item.id, item);
+    });
     return newestFirst(Array.from(merged.values()), (item) => item.createdAtUtc);
-  }, [data]);
+  }, [data, isDismissed]);
 
   const openFilter = () => {
     setFilterDraft(filters);
@@ -182,7 +186,6 @@ export default function MaintenancePage() {
         await updateItem({ id: editing.id, body }).unwrap();
       }
       closeEditor();
-      await refetch();
     } catch (err) {
       setError(getErrorMessage(err, "Failed to save maintenance request."));
     }
@@ -199,7 +202,6 @@ export default function MaintenancePage() {
           status,
         },
       }).unwrap();
-      await refetch();
     } catch (err) {
       alert(getErrorMessage(err, "Failed to update request."));
     }
@@ -209,14 +211,14 @@ export default function MaintenancePage() {
     if (!confirm("Delete maintenance request?")) return;
     try {
       await deleteItem(id).unwrap();
-      await refetch();
+      dismiss(id);
     } catch (err) {
       alert(getErrorMessage(err, "Failed to delete request."));
     }
   };
 
   return (
-    <div className="mx-auto w-full max-w-6xl p-6">
+    <div className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
       <PageToolbar
         title="Maintenance"
         filterLabel="Filter maintenance requests"
@@ -225,28 +227,34 @@ export default function MaintenancePage() {
         onAdd={openCreate}
       />
 
-      <div className="rounded-2xl border bg-white p-4 shadow-sm">
-        <h2 className="mb-3 text-lg font-semibold">Requests List</h2>
+      <div className="panel">
+        <h2 className="panel-title">
+          <span>Requests List</span>
+          <span aria-hidden="true" className="sort-hint">Newest first</span>
+        </h2>
         {isLoading ? (
-          <p>Loading...</p>
+          <p className="state-loading">Loading…</p>
         ) : isError ? (
-          <p className="text-red-600">Failed to load requests.</p>
+          <p className="state-error">Failed to load requests.</p>
         ) : (
-          <ul className="divide-y">
+          <ul className="list">
             {items.map((item) => (
-              <li key={item.id} className="flex items-start justify-between gap-4 py-2">
+              <li key={item.id} className="list-row">
                 <div className="min-w-0 flex-1">
                   <button
                     type="button"
                     aria-label={`Edit request ${item.id}`}
                     onClick={() => openEdit(item)}
-                    className="w-full rounded-md text-left hover:opacity-80"
+                    className="list-row-start w-full"
                   >
-                    <div className="font-medium">
+                    <div className="row-title">
                       #{item.id} — {item.title || "(no title)"}{" "}
-                      <span className="text-sm text-gray-500">• Priority {item.priority} • Status {item.status}</span>
+                      <span className="text-sm text-slate-400">• Priority {item.priority} • </span>
+                      <span className={`status-badge ${item.status >= 4 ? "status-active" : "status-inactive"}`}>
+                        Status {item.status}
+                      </span>
                     </div>
-                    <div className="text-sm text-gray-600">
+                    <div className="row-meta">
                       Property #{item.propertyId}{item.unitId ? ` • Unit #${item.unitId}` : ""} •{" "}
                       {item.createdAtUtc ? new Date(item.createdAtUtc).toLocaleString() : "unknown date"}
                     </div>
@@ -256,14 +264,14 @@ export default function MaintenancePage() {
                       <button
                         aria-label={`Mark request ${item.id} in progress`}
                         onClick={() => handleMark(item, 2)}
-                        className="rounded-md px-3 py-1 text-sm text-blue-700 hover:bg-blue-50"
+                        className="row-action-brand"
                       >
                         Mark In&nbsp;Progress
                       </button>
                       <button
                         aria-label={`Mark request ${item.id} resolved`}
                         onClick={() => handleMark(item, 4)}
-                        className="rounded-md px-3 py-1 text-sm text-green-700 hover:bg-green-50"
+                        className="row-action-success"
                       >
                         Mark Resolved
                       </button>
@@ -274,7 +282,7 @@ export default function MaintenancePage() {
                   <button
                     aria-label={`Delete request ${item.id}`}
                     onClick={() => handleDelete(item.id)}
-                    className="rounded-md px-3 py-1 text-sm text-red-600 hover:bg-red-50"
+                    className="row-action"
                   >
                     Delete
                   </button>
@@ -294,16 +302,16 @@ export default function MaintenancePage() {
           }}
         >
           <div className="grid grid-cols-2 gap-3">
-            <div className="flex flex-col">
-              <label htmlFor="mnt-filter-prop" className="text-sm font-medium">Property ID</label>
-              <input id="mnt-filter-prop" className="rounded-md border p-2" type="number" min={1} placeholder="e.g., 1" value={filterDraft.propertyId ?? ""} onChange={(e) => setFilterDraft({ ...filterDraft, propertyId: e.target.value ? Number(e.target.value) : undefined })} />
+            <div className="field">
+              <label htmlFor="mnt-filter-prop" className="field-label">Property ID</label>
+              <input id="mnt-filter-prop" className="field-input" type="number" min={1} placeholder="e.g., 1" value={filterDraft.propertyId ?? ""} onChange={(e) => setFilterDraft({ ...filterDraft, propertyId: e.target.value ? Number(e.target.value) : undefined })} />
             </div>
-            <div className="flex flex-col">
-              <label htmlFor="mnt-filter-unit" className="text-sm font-medium">Unit ID</label>
-              <input id="mnt-filter-unit" className="rounded-md border p-2" type="number" min={1} placeholder="optional" value={filterDraft.unitId ?? ""} onChange={(e) => setFilterDraft({ ...filterDraft, unitId: e.target.value ? Number(e.target.value) : undefined })} />
+            <div className="field">
+              <label htmlFor="mnt-filter-unit" className="field-label">Unit ID</label>
+              <input id="mnt-filter-unit" className="field-input" type="number" min={1} placeholder="optional" value={filterDraft.unitId ?? ""} onChange={(e) => setFilterDraft({ ...filterDraft, unitId: e.target.value ? Number(e.target.value) : undefined })} />
             </div>
           </div>
-          <div className="mt-5 flex justify-end gap-2">
+          <div className="form-actions">
             <Button variant="secondary" type="button" onClick={() => { setFilterDraft({}); setFilters({}); setFilterOpen(false); }}>Clear</Button>
             <Button type="submit" aria-label="Apply maintenance filters">Apply</Button>
           </div>
@@ -319,7 +327,7 @@ export default function MaintenancePage() {
           <form onSubmit={submit}>
             <MaintenanceFields form={form} setForm={setForm} properties={properties} units={units} editing={editing !== "new"} />
             {error && <p role="alert" className="mt-3 text-sm text-red-600">{error}</p>}
-            <div className="mt-5 flex justify-end gap-2">
+            <div className="form-actions">
               <Button variant="secondary" type="button" onClick={closeEditor}>Cancel</Button>
               <Button
                 type="submit"

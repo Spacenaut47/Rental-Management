@@ -14,6 +14,7 @@ import PageToolbar from "../components/ui/PageToolbar";
 import RoleGate from "../features/auth/RoleGate";
 import { getErrorMessage } from "../lib/errors";
 import { newestFirst } from "../lib/sort";
+import { useDismissedIds } from "../hooks/useDismissedIds";
 
 const emptyForm: LeaseCreate = {
   unitId: 0,
@@ -43,11 +44,11 @@ function LeaseFields({
   return (
     <>
       <div className="mb-3 grid grid-cols-2 gap-3 rounded-md border bg-gray-50 p-3 text-sm">
-        <div className="flex flex-col">
+        <div className="field">
           <label htmlFor="lease-unit-select" className="mb-1 font-medium">Unit</label>
           <select
             id="lease-unit-select"
-            className="w-full rounded-md border p-2"
+            className="w-full field-input"
             value={form.unitId || units[0]?.id || 0}
             onChange={(e) => update("unitId", Number(e.target.value))}
           >
@@ -56,11 +57,11 @@ function LeaseFields({
             ))}
           </select>
         </div>
-        <div className="flex flex-col">
+        <div className="field">
           <label htmlFor="lease-tenant-select" className="mb-1 font-medium">Tenant</label>
           <select
             id="lease-tenant-select"
-            className="w-full rounded-md border p-2"
+            className="w-full field-input"
             value={form.tenantId || tenants[0]?.id || 0}
             onChange={(e) => update("tenantId", Number(e.target.value))}
           >
@@ -71,21 +72,21 @@ function LeaseFields({
         </div>
       </div>
       <div className="grid grid-cols-2 gap-3">
-        <div className="flex flex-col">
-          <label htmlFor="lease-start" className="text-sm font-medium">Start (ISO)</label>
-          <input id="lease-start" className="rounded-md border p-2" placeholder="YYYY-MM-DDTHH:mm:ssZ" value={form.startDateUtc} onChange={(e) => update("startDateUtc", e.target.value)} />
+        <div className="field">
+          <label htmlFor="lease-start" className="field-label">Start (ISO)</label>
+          <input id="lease-start" className="field-input" placeholder="YYYY-MM-DDTHH:mm:ssZ" value={form.startDateUtc} onChange={(e) => update("startDateUtc", e.target.value)} />
         </div>
-        <div className="flex flex-col">
-          <label htmlFor="lease-end" className="text-sm font-medium">End (ISO)</label>
-          <input id="lease-end" className="rounded-md border p-2" placeholder="YYYY-MM-DDTHH:mm:ssZ" value={form.endDateUtc} onChange={(e) => update("endDateUtc", e.target.value)} />
+        <div className="field">
+          <label htmlFor="lease-end" className="field-label">End (ISO)</label>
+          <input id="lease-end" className="field-input" placeholder="YYYY-MM-DDTHH:mm:ssZ" value={form.endDateUtc} onChange={(e) => update("endDateUtc", e.target.value)} />
         </div>
-        <div className="flex flex-col">
-          <label htmlFor="lease-rent" className="text-sm font-medium">Monthly Rent (₹)</label>
-          <input id="lease-rent" className="rounded-md border p-2" type="number" min={0} step="0.01" value={form.monthlyRent} onChange={(e) => update("monthlyRent", Number(e.target.value))} />
+        <div className="field">
+          <label htmlFor="lease-rent" className="field-label">Monthly Rent (₹)</label>
+          <input id="lease-rent" className="field-input" type="number" min={0} step="0.01" value={form.monthlyRent} onChange={(e) => update("monthlyRent", Number(e.target.value))} />
         </div>
-        <div className="flex flex-col">
-          <label htmlFor="lease-deposit" className="text-sm font-medium">Security Deposit (₹)</label>
-          <input id="lease-deposit" className="rounded-md border p-2" type="number" min={0} step="0.01" value={form.securityDeposit} onChange={(e) => update("securityDeposit", Number(e.target.value))} />
+        <div className="field">
+          <label htmlFor="lease-deposit" className="field-label">Security Deposit (₹)</label>
+          <input id="lease-deposit" className="field-input" type="number" min={0} step="0.01" value={form.securityDeposit} onChange={(e) => update("securityDeposit", Number(e.target.value))} />
         </div>
       </div>
     </>
@@ -100,16 +101,20 @@ export default function LeasesPage() {
   const [form, setForm] = useState<LeaseCreate>(emptyForm);
   const [error, setError] = useState("");
 
-  const { data, isLoading, isError, refetch } = useListLeasesQuery(filters);
+  const { data, isLoading, isError } = useListLeasesQuery(filters);
   const { data: unitsData } = useListUnitsQuery(undefined);
   const { data: tenantsData } = useListTenantsQuery(undefined);
   const [createLease, { isLoading: creating }] = useCreateLeaseMutation();
   const [updateLease, { isLoading: updating }] = useUpdateLeaseMutation();
   const [deleteLease] = useDeleteLeaseMutation();
+  const { dismiss, isDismissed } = useDismissedIds();
 
   const units = unitsData ?? [];
   const tenants = tenantsData ?? [];
-  const leases = newestFirst(data ?? [], (lease) => lease.createdAtUtc);
+  const leases = newestFirst(
+    (data ?? []).filter((lease) => !isDismissed(lease.id)),
+    (lease) => lease.createdAtUtc
+  );
 
   const openFilter = () => {
     setFilterDraft(filters);
@@ -163,7 +168,6 @@ export default function LeasesPage() {
         await updateLease({ id: editing.id, body }).unwrap();
       }
       closeEditor();
-      await refetch();
     } catch (err) {
       setError(getErrorMessage(err, "Failed to save lease."));
     }
@@ -173,7 +177,7 @@ export default function LeasesPage() {
     if (!confirm("Delete lease?")) return;
     try {
       await deleteLease(id).unwrap();
-      await refetch();
+      dismiss(id);
     } catch (err) {
       alert(getErrorMessage(err, "Failed to delete lease."));
     }
@@ -185,7 +189,7 @@ export default function LeasesPage() {
   };
 
   return (
-    <div className="mx-auto w-full max-w-6xl p-6">
+    <div className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
       <PageToolbar
         title="Leases"
         filterLabel="Filter leases"
@@ -194,32 +198,38 @@ export default function LeasesPage() {
         onAdd={openCreate}
       />
 
-      <div className="rounded-2xl border bg-white p-4 shadow-sm">
-        <h2 className="mb-3 text-lg font-semibold">Leases List</h2>
+      <div className="panel">
+        <h2 className="panel-title">
+          <span>Leases List</span>
+          <span aria-hidden="true" className="sort-hint">Newest first</span>
+        </h2>
         {isLoading ? (
-          <p>Loading...</p>
+          <p className="state-loading">Loading…</p>
         ) : isError ? (
-          <p className="text-red-600">Failed to load leases.</p>
+          <p className="state-error">Failed to load leases.</p>
         ) : (
-          <ul className="divide-y">
+          <ul className="list">
             {leases.map((lease) => (
-              <li key={lease.id} className="flex items-center justify-between gap-4 py-2">
+              <li key={lease.id} className="list-row">
                 <button
                   type="button"
                   aria-label={`Edit lease ${lease.id}`}
                   onClick={() => openEdit(lease)}
-                  className="min-w-0 flex-1 rounded-md text-left hover:opacity-80"
+                  className="list-row-start"
                 >
-                  <div className="font-medium">Lease #{lease.id} — Unit #{lease.unitId} • Tenant {tenantName(lease.tenantId)}</div>
-                  <div className="text-sm text-gray-600">
-                    {new Date(lease.startDateUtc).toLocaleDateString()} → {new Date(lease.endDateUtc).toLocaleDateString()} • ₹{lease.monthlyRent} rent • ₹{lease.securityDeposit} deposit • {lease.isActive ? "Active" : "Inactive"}
+                  <div className="row-title">Lease #{lease.id} — Unit #{lease.unitId} • Tenant {tenantName(lease.tenantId)}</div>
+                  <div className="row-meta">
+                    {new Date(lease.startDateUtc).toLocaleDateString()} → {new Date(lease.endDateUtc).toLocaleDateString()} • ₹{lease.monthlyRent} rent • ₹{lease.securityDeposit} deposit •{" "}
+                    <span className={`status-badge ${lease.isActive ? "status-active" : "status-inactive"}`}>
+                      {lease.isActive ? "Active" : "Inactive"}
+                    </span>
                   </div>
                 </button>
                 <RoleGate allow={["Admin"]}>
                   <button
                     aria-label={`Delete lease ${lease.id}`}
                     onClick={() => handleDelete(lease.id)}
-                    className="rounded-md px-3 py-1 text-sm text-red-600 hover:bg-red-50"
+                    className="row-action"
                   >
                     Delete
                   </button>
@@ -239,24 +249,24 @@ export default function LeasesPage() {
           }}
         >
           <div className="grid grid-cols-2 gap-3">
-            <div className="flex flex-col">
-              <label htmlFor="lease-filter-unit" className="text-sm font-medium">Unit ID</label>
-              <input id="lease-filter-unit" className="rounded-md border p-2" type="number" min={1} placeholder="e.g., 1" value={filterDraft.unitId ?? ""} onChange={(e) => setFilterDraft({ ...filterDraft, unitId: e.target.value ? Number(e.target.value) : undefined })} />
+            <div className="field">
+              <label htmlFor="lease-filter-unit" className="field-label">Unit ID</label>
+              <input id="lease-filter-unit" className="field-input" type="number" min={1} placeholder="e.g., 1" value={filterDraft.unitId ?? ""} onChange={(e) => setFilterDraft({ ...filterDraft, unitId: e.target.value ? Number(e.target.value) : undefined })} />
             </div>
-            <div className="flex flex-col">
-              <label htmlFor="lease-filter-tenant" className="text-sm font-medium">Tenant ID</label>
-              <input id="lease-filter-tenant" className="rounded-md border p-2" type="number" min={1} placeholder="e.g., 1" value={filterDraft.tenantId ?? ""} onChange={(e) => setFilterDraft({ ...filterDraft, tenantId: e.target.value ? Number(e.target.value) : undefined })} />
+            <div className="field">
+              <label htmlFor="lease-filter-tenant" className="field-label">Tenant ID</label>
+              <input id="lease-filter-tenant" className="field-input" type="number" min={1} placeholder="e.g., 1" value={filterDraft.tenantId ?? ""} onChange={(e) => setFilterDraft({ ...filterDraft, tenantId: e.target.value ? Number(e.target.value) : undefined })} />
             </div>
-            <div className="col-span-2 flex flex-col">
-              <label htmlFor="lease-filter-active" className="text-sm font-medium">Status</label>
-              <select id="lease-filter-active" className="rounded-md border p-2" value={filterDraft.active === undefined ? "" : String(filterDraft.active)} onChange={(e) => setFilterDraft({ ...filterDraft, active: e.target.value === "" ? undefined : e.target.value === "true" })}>
+            <div className="col-span-2 field">
+              <label htmlFor="lease-filter-active" className="field-label">Status</label>
+              <select id="lease-filter-active" className="field-input" value={filterDraft.active === undefined ? "" : String(filterDraft.active)} onChange={(e) => setFilterDraft({ ...filterDraft, active: e.target.value === "" ? undefined : e.target.value === "true" })}>
                 <option value="">Any</option>
                 <option value="true">Active</option>
                 <option value="false">Inactive</option>
               </select>
             </div>
           </div>
-          <div className="mt-5 flex justify-end gap-2">
+          <div className="form-actions">
             <Button variant="secondary" type="button" onClick={() => { setFilterDraft({}); setFilters({}); setFilterOpen(false); }}>Clear</Button>
             <Button type="submit" aria-label="Apply lease filters">Apply</Button>
           </div>
@@ -273,7 +283,7 @@ export default function LeasesPage() {
           <form onSubmit={submit}>
             <LeaseFields form={form} setForm={setForm} units={units} tenants={tenants} />
             {error && <p role="alert" className="mt-3 text-sm text-red-600">{error}</p>}
-            <div className="mt-5 flex justify-end gap-2">
+            <div className="form-actions">
               <Button variant="secondary" type="button" onClick={closeEditor}>Cancel</Button>
               <Button
                 type="submit"

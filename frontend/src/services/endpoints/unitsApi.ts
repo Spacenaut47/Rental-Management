@@ -37,7 +37,10 @@ export const unitsApi = baseApi.injectEndpoints({
     }),
     updateUnit: b.mutation<Unit, { id: number; body: UnitUpdate }>({
       query: ({ id, body }) => ({ url: `/units/${id}`, method: "PUT", body }),
-      invalidatesTags: (_res, _err, arg) => [{ type: "Unit", id: arg.id }],
+      invalidatesTags: (_res, _err, arg) => [
+        { type: "Unit", id: arg.id },
+        { type: "Unit", id: "LIST" },
+      ],
     }),
     deleteUnit: b.mutation<void, number>({
       query: (id) => ({ url: `/units/${id}`, method: "DELETE" }),
