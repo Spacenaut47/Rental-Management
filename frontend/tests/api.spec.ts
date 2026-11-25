@@ -3,11 +3,16 @@ import { apiLogin, authHeaders, unique } from './helpers';
 
 test.describe('API contract', () => {
   test('serves the OpenAPI document', async ({ request }) => {
-    const response = await request.get('http://127.0.0.1:5180/swagger/v1/swagger.json');
+    const response = await request.get('http://127.0.0.1:5180/openapi/v1.json');
     expect(response.status()).toBe(200);
     const spec = await response.json();
     expect(spec.info.title).toBe('Rental Management API');
     expect(spec.paths['/api/auth/login']).toBeTruthy();
+    expect(spec.components.securitySchemes.Bearer.scheme).toBe('bearer');
+  });
+
+  test('serves the Scalar API reference', async ({ request }) => {
+    expect((await request.get('http://127.0.0.1:5180/scalar/v1')).status()).toBe(200);
   });
 
   test('returns 404 for unknown routes', async ({ request }) => {

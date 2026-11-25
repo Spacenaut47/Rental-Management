@@ -36,7 +36,6 @@ export default function UnitsPage() {
     bathrooms: 0,
     rent: 0,
     sizeSqFt: 0,
-    isOccupied: false,
   });
 
   const selectedPropertyId = form.propertyId || propsData?.[0]?.id || 0;
@@ -60,7 +59,7 @@ export default function UnitsPage() {
       });
 
       // reset create form (keep property selection)
-      setForm((f) => ({ ...f, unitNumber: "", bedrooms: 0, bathrooms: 0, rent: 0, sizeSqFt: 0, isOccupied: false }));
+      setForm((f) => ({ ...f, unitNumber: "", bedrooms: 0, bathrooms: 0, rent: 0, sizeSqFt: 0 }));
 
       // refresh server list & leases so occupancy is recalculated
       await refetch();
@@ -168,12 +167,6 @@ export default function UnitsPage() {
               <div className="flex flex-col">
                 <label htmlFor="unit-size" className="text-sm font-medium">Size (sqft)</label>
                 <input id="unit-size" className="rounded-md border p-2" type="number" min={0} value={form.sizeSqFt} onChange={(e) => setForm({ ...form, sizeSqFt: Number(e.target.value) })} />
-              </div>
-              <div className="col-span-2">
-                <label htmlFor="unit-occupied" className="inline-flex items-center gap-2 text-sm">
-                  <input id="unit-occupied" type="checkbox" checked={form.isOccupied} onChange={(e) => setForm({ ...form, isOccupied: e.target.checked })} />
-                  Mark as Occupied
-                </label>
               </div>
             </div>
             <div className="mt-3">

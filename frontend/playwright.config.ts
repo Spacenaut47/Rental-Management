@@ -19,7 +19,7 @@ export default defineConfig({
   webServer: [
     {
       command: 'npm run backend',
-      url: `${backendURL}/swagger/v1/swagger.json`,
+      url: `${backendURL}/openapi/v1.json`,
       reuseExistingServer: !process.env.CI,
       timeout: 120_000,
     },

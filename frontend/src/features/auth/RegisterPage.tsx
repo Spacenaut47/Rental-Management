@@ -3,10 +3,14 @@ import { useState, useMemo } from "react";
 import { useRegisterMutation } from "../../services/endpoints/authApi";
 import Button from "../../components/ui/Button";
 import { getErrorMessage } from "../../lib/errors";
+import { normalizeRole } from "../../lib/roles";
+import { useAppDispatch } from "../../app/hooks";
+import { setCredentials } from "./authSlice";
 import { useNavigate } from "react-router-dom";
 
 export default function RegisterPage() {
   const [register, { isLoading, error }] = useRegisterMutation();
+  const dispatch = useAppDispatch();
   const navigate = useNavigate();
   const [form, setForm] = useState({
     username: "",
@@ -42,12 +46,21 @@ export default function RegisterPage() {
     e.preventDefault();
     if (clientIssues.length) return;
     try {
-      await register(form).unwrap();
-      // Redirect to login
-      navigate("/login");
+      const res = await register(form).unwrap();
+      dispatch(
+        setCredentials({
+          token: res.accessToken,
+          user: {
+            userId: res.userId,
+            username: res.username,
+            email: res.email,
+            role: normalizeRole(res.role),
+          },
+        })
+      );
+      navigate("/");
     } catch (err) {
       console.error("Register failed", err);
-      if (!error) alert("Registration failed. See console for details.");
     }
   };
 

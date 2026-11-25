@@ -13,13 +13,16 @@ import LeasesPage from "../pages/LeasesPage";
 import PaymentsPage from "../pages/PaymentsPage";
 import MaintenancePage from "../pages/MaintenancePage";
 import AdminAuditPage from "../pages/AdminAuditPage";
+import { useAppSelector } from "../app/hooks";
 
 export default function Router() {
+  const authenticated = Boolean(useAppSelector((s) => s.auth.token));
+
   return (
     <div className="min-h-screen">
       <Navbar />
-      <div className="mx-auto grid max-w-6xl grid-cols-1 md:grid-cols-[16rem_1fr]">
-        <Sidebar />
+      <div className={`mx-auto grid max-w-6xl grid-cols-1 ${authenticated ? "md:grid-cols-[16rem_1fr]" : ""}`}>
+        {authenticated ? <Sidebar /> : null}
         <main>
           <Routes>
             <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />

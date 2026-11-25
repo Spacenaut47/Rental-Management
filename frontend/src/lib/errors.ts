@@ -1,6 +1,7 @@
 export type ProblemDetails = {
   title?: string;
   detail?: string;
+  message?: string;
   errors?: Record<string, string[]>;
 };
 
@@ -18,7 +19,7 @@ export function getErrorMessage(error: unknown, fallback = "Request failed."): s
 
   const data = error.data;
 
-  if (data !== undefined) {
+  if (data !== undefined && data !== null) {
     if (typeof data === "string") return data;
 
     if (Array.isArray(data)) {
@@ -40,6 +41,7 @@ export function getErrorMessage(error: unknown, fallback = "Request failed."): s
         if (messages.length) return messages.join("\n");
       }
       if (problem.detail) return problem.detail;
+      if (problem.message) return problem.message;
       if (problem.title) return problem.title;
     }
 

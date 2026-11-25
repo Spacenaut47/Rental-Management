@@ -10,7 +10,7 @@ export interface Unit {
   sizeSqFt: number;
   isOccupied: boolean;
 }
-export type UnitCreate = Omit<Unit, "id">;
+export type UnitCreate = Omit<Unit, "id" | "isOccupied">;
 
 export const unitsApi = baseApi.injectEndpoints({
   endpoints: (b) => ({

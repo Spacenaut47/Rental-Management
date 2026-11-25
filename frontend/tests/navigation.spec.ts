@@ -22,7 +22,7 @@ test.describe('Navigation and shell', () => {
 
   test('shows every section link after login', async ({ page }) => {
     await uiLogin(page);
-    for (const label of ['/properties', '/tenants', '/units', '/leases', '/payments', '/maintenance', 'Audit']) {
+    for (const label of ['Properties', 'Tenants', 'Units', 'Leases', 'Payments', 'Maintenance', 'Audit']) {
       await expect(page.getByRole('link', { name: label, exact: true })).toBeVisible();
     }
   });
@@ -30,8 +30,13 @@ test.describe('Navigation and shell', () => {
   test('marks the current sidebar route as active', async ({ page }) => {
     await uiLogin(page);
     await page.goto('/units');
-    const link = page.getByRole('link', { name: '/units', exact: true });
+    const link = page.getByRole('link', { name: 'Units', exact: true });
     await expect(link).toHaveClass(/font-semibold/);
+  });
+
+  test('hides the sidebar on public auth pages', async ({ page }) => {
+    await page.goto('/login');
+    await expect(page.locator('aside')).toHaveCount(0);
   });
 
   test('dashboard renders the welcome panel', async ({ page }) => {
