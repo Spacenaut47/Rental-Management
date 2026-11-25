@@ -8,7 +8,7 @@
   },
   "scripts": {
     "dev": "concurrently -k -n backend,frontend -c blue,green \"npm:backend\" \"npm:vite\"",
-    "backend": "dotnet run --project ../backend --urls http://127.0.0.1:5180",
+    "backend": "dotnet run --project ../backend/api/backend.csproj --urls http://127.0.0.1:5180",
     "vite": "vite --host 127.0.0.1",
     "build": "tsc -b && vite build",
     "lint": "eslint .",

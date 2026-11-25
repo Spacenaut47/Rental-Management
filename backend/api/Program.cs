@@ -1,0 +1,163 @@
+using System.Text;
+using AutoMapper;
+using backend.Data;
+using backend.Data.Seed;
+using backend.Mapping;
+using backend.Middleware;
+using backend.OpenApi;
+using backend.Repositories.Ef;
+using backend.Repositories.Interfaces;
+using backend.Services.Auth;
+using backend.Services.Implementations;
+using backend.Services.Interfaces;
+using FluentValidation;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
+using Scalar.AspNetCore;
+using backend.Security;
+
+var builder = WebApplication.CreateBuilder(args);
+
+var jwtOptions = builder.Configuration.GetSection("Jwt").Get<JwtOptions>() ?? new JwtOptions();
+if (string.IsNullOrWhiteSpace(jwtOptions.Issuer)) throw new InvalidOperationException("Jwt:Issuer must be configured.");
+if (string.IsNullOrWhiteSpace(jwtOptions.Audience)) throw new InvalidOperationException("Jwt:Audience must be configured.");
+if (string.IsNullOrWhiteSpace(jwtOptions.Key) || jwtOptions.Key.Length < 32)
+    throw new InvalidOperationException("Jwt:Key must be at least 32 characters.");
+if (jwtOptions.AccessTokenMinutes <= 0)
+    throw new InvalidOperationException("Jwt:AccessTokenMinutes must be greater than zero.");
+if (!builder.Environment.IsDevelopment() && jwtOptions.Key.Contains("REPLACE_WITH", StringComparison.OrdinalIgnoreCase))
+    throw new InvalidOperationException("Jwt:Key must be replaced with a secure value outside Development.");
+
+// 1) Configuration
+builder.Services.AddSingleton(jwtOptions);
+
+// 2) DbContext (SQL Server / Azure SQL)
+builder.Services.AddDbContext<AppDbContext>(opt =>
+{
+    opt.UseSqlite(builder.Configuration.GetConnectionString("DefaultConnection") ?? "Data Source=app.db;");
+});
+
+
+// 3) AutoMapper
+builder.Services.AddAutoMapper(cfg =>
+{
+    cfg.AddProfile<MappingProfile>();
+});
+
+// 4) FluentValidation
+builder.Services.AddValidatorsFromAssemblyContaining<backend.Validators.Auth.RegisterRequestValidator>();
+
+// 5) Auth / JWT
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        options.RequireHttpsMetadata = !builder.Environment.IsDevelopment();
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidIssuer = jwtOptions.Issuer,
+            ValidateAudience = true,
+            ValidAudience = jwtOptions.Audience,
+            ValidateIssuerSigningKey = true,
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtOptions.Key)),
+            ValidateLifetime = true,
+            ClockSkew = TimeSpan.FromSeconds(30)
+        };
+    });
+
+
+// ...
+builder.Services.AddAuthorization(options =>
+{
+    Policies.AddRolePolicies(options);
+});
+
+// 6) CORS
+const string FrontendCors = "FrontendCors";
+var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
+    ?? ["http://localhost:5173", "http://127.0.0.1:5173"];
+
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy(FrontendCors, policy =>
+    {
+        policy
+            .WithOrigins(allowedOrigins)
+            .AllowAnyHeader()
+            .AllowAnyMethod()
+            .AllowCredentials();
+    });
+});
+
+// 7) OpenAPI + Scalar
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddOpenApi("v1", options =>
+{
+    options.AddDocumentTransformer<BearerSecuritySchemeTransformer>();
+});
+
+// 8) Controllers
+builder.Services.AddControllers();
+
+// 9) DI for Repos & Services
+builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
+builder.Services.AddScoped<IPasswordHasher, PasswordHasher>();
+builder.Services.AddScoped<ITokenService, TokenService>();
+builder.Services.AddScoped<IPropertyService, PropertyService>();
+builder.Services.AddScoped<IAuditLogService, AuditLogService>();
+builder.Services.AddScoped<IUnitService, UnitService>();
+builder.Services.AddScoped<ITenantService, TenantService>();
+builder.Services.AddScoped<ILeaseService, LeaseService>();
+builder.Services.AddScoped<IPaymentService, PaymentService>();
+builder.Services.AddScoped<IMaintenanceService, MaintenanceService>();
+
+var app = builder.Build();
+
+// Middleware
+app.UseMiddleware<ErrorHandlingMiddleware>();
+
+if (app.Environment.IsDevelopment())
+{
+    app.MapOpenApi();
+    app.MapScalarApiReference();
+}
+
+app.UseHttpsRedirection();
+
+app.UseCors(FrontendCors);
+
+app.UseAuthentication();
+app.UseAuthorization();
+
+app.MapControllers();
+
+// DB migrate + seed (safer)
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    var hasher = scope.ServiceProvider.GetRequiredService<IPasswordHasher>();
+    var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+
+    try
+    {
+        logger.LogInformation("Applying EF migrations (if any)...");
+        // Use migrations in all environments to keep things consistent.
+        // EnsureCreated() is avoided to prevent divergence from migrations.
+        await db.Database.MigrateAsync();
+
+        logger.LogInformation("Running idempotent seed...");
+        var adminPassword = builder.Environment.IsDevelopment()
+            ? "Admin@12345"
+            : builder.Configuration["Seed:AdminPassword"];
+        await SeedData.InitializeAsync(db, hasher, adminPassword);
+
+        logger.LogInformation("Database setup completed successfully.");
+    }
+    catch (Exception ex)
+    {
+        logger.LogError(ex, "An error occurred while setting up the database.");
+        throw;
+    }
+}
+await app.RunAsync();

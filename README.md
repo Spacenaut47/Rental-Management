@@ -17,10 +17,13 @@ Audit logging is included for important actions, and data is validated both on t
 ## Project structure
 
 - **backend/**  
-  Contains the ASP.NET Core Web API. It includes controllers, entities, data access with EF Core, repositories with a Unit of Work pattern, services for business logic, validators, middleware, and mapping profiles.
+  Contains the .NET solution, central package versions, the API project in `api/`, and the test project in `tests/`. The API includes controllers, entities, EF Core data access, repositories with a Unit of Work pattern, services, validators, middleware, and mapping profiles.
 
 - **frontend/**  
   Contains the React + TypeScript frontend application. It includes Redux store configuration, RTK Query API slices, React components, pages for each feature, layout elements such as navbar and sidebar, and small utility libraries for authentication, role handling, and storage.
+
+- **.github/**
+  Contains agent guidelines (`AGENTS.md`), code ownership (`CODEOWNERS`), and Dependabot configuration (`dependabot.yml`).
 
 ---
 
@@ -124,7 +127,7 @@ npm install
 npm run dev
 
 # Backend only
-dotnet run --project backend --urls http://127.0.0.1:5180
+dotnet run --project backend/api/backend.csproj --urls http://127.0.0.1:5180
 ```
 
 Vite runs on `http://127.0.0.1:5173` and proxies `/api` to the backend.
@@ -136,7 +139,7 @@ Development seeds an administrator account: `admin` / `Admin@12345`.
 
 ```bash
 # Backend unit and integration tests
-dotnet test --project backend.Tests/backend.Tests.csproj
+dotnet test backend/rental-management.sln
 
 # Frontend unit tests (Vitest + Testing Library)
 cd frontend

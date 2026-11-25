@@ -1,0 +1,15 @@
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /frontend
+    target-branch: main
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 10
+
+  - package-ecosystem: nuget
+    directory: /backend
+    target-branch: main
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 10
