@@ -18,7 +18,9 @@ describe("Sidebar", () => {
     ];
 
     for (const [label, href] of links) {
-      expect(screen.getByRole("link", { name: label })).toHaveAttribute("href", href);
+      const link = screen.getByRole("link", { name: label });
+      expect(link).toHaveAttribute("href", href);
+      expect(link.querySelector("svg")).toBeInTheDocument();
     }
   });
 

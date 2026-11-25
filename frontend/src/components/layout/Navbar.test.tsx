@@ -7,8 +7,8 @@ describe("Navbar", () => {
   it("shows login and registration links when signed out", () => {
     renderWithProviders(<Navbar />, { auth: { token: null, user: null } });
 
-    expect(screen.getByRole("link", { name: "Login" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Register" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Login" }).querySelector("svg")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Register" }).querySelector("svg")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Logout" })).not.toBeInTheDocument();
   });
 
@@ -16,7 +16,7 @@ describe("Navbar", () => {
     renderWithProviders(<Navbar />, { auth: authState("Admin") });
 
     expect(screen.getByText("Hi, admin (Admin)")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Logout" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Logout" }).querySelector("svg")).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Login" })).not.toBeInTheDocument();
   });
 
