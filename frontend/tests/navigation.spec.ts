@@ -58,6 +58,6 @@ test.describe('Navigation and shell', () => {
     await expect(page.getByRole('heading', { name: 'Properties', exact: true })).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Create Property' })).toHaveCount(0);
     await page.goto('/maintenance');
-    await expect(page.getByRole('button', { name: 'Create maintenance request' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Create maintenance request' })).toHaveCount(0);
   });
 });
