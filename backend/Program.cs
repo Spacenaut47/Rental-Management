@@ -4,6 +4,7 @@ using backend.Data;
 using backend.Data.Seed;
 using backend.Mapping;
 using backend.Middleware;
+using backend.OpenApi;
 using backend.Repositories.Ef;
 using backend.Repositories.Interfaces;
 using backend.Services.Auth;
@@ -13,7 +14,7 @@ using FluentValidation;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
-using Microsoft.OpenApi;
+using Scalar.AspNetCore;
 using backend.Security;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -89,26 +90,11 @@ builder.Services.AddCors(options =>
     });
 });
 
-// 7) Swagger
+// 7) OpenAPI + Scalar
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen(c =>
+builder.Services.AddOpenApi("v1", options =>
 {
-    c.SwaggerDoc("v1", new OpenApiInfo { Title = "Rental Management API", Version = "v1" });
-
-    c.AddSecurityDefinition(JwtBearerDefaults.AuthenticationScheme, new OpenApiSecurityScheme
-    {
-        Scheme = "bearer",
-        BearerFormat = "JWT",
-        Name = "Authorization",
-        In = ParameterLocation.Header,
-        Type = SecuritySchemeType.Http,
-        Description = "Put **_ONLY_** your JWT Bearer token here"
-    });
-
-    c.AddSecurityRequirement(document => new OpenApiSecurityRequirement
-    {
-        [new OpenApiSecuritySchemeReference(JwtBearerDefaults.AuthenticationScheme, document)] = []
-    });
+    options.AddDocumentTransformer<BearerSecuritySchemeTransformer>();
 });
 
 // 8) Controllers
@@ -133,8 +119,8 @@ app.UseMiddleware<ErrorHandlingMiddleware>();
 
 if (app.Environment.IsDevelopment())
 {
-    app.UseSwagger();
-    app.UseSwaggerUI();
+    app.MapOpenApi();
+    app.MapScalarApiReference();
 }
 
 app.UseHttpsRedirection();
