@@ -39,7 +39,7 @@ public class AppDbContext : DbContext
             .HasOne(u => u.Property)
             .WithMany(p => p.Units)
             .HasForeignKey(u => u.PropertyId)
-            .OnDelete(DeleteBehavior.Cascade);
+            .OnDelete(DeleteBehavior.Restrict);
 
         modelBuilder.Entity<Tenant>()
             .HasIndex(t => t.NormalizedEmail)
@@ -61,10 +61,28 @@ public class AppDbContext : DbContext
             .HasOne(p => p.Lease)
             .WithMany()
             .HasForeignKey(p => p.LeaseId)
-            .OnDelete(DeleteBehavior.Cascade);
+            .OnDelete(DeleteBehavior.Restrict);
 
         modelBuilder.Entity<MaintenanceRequest>()
             .HasIndex(m => new { m.PropertyId, m.UnitId, m.TenantId });
+
+        modelBuilder.Entity<MaintenanceRequest>()
+            .HasOne(m => m.Property)
+            .WithMany()
+            .HasForeignKey(m => m.PropertyId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<MaintenanceRequest>()
+            .HasOne(m => m.Unit)
+            .WithMany()
+            .HasForeignKey(m => m.UnitId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<MaintenanceRequest>()
+            .HasOne(m => m.Tenant)
+            .WithMany()
+            .HasForeignKey(m => m.TenantId)
+            .OnDelete(DeleteBehavior.Restrict);
 
         // ----- Decimal precision for currency/amount fields -----
         // Use decimal(18,2) as a sensible default for monetary values (adjust if you need more precision)

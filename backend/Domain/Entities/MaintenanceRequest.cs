@@ -14,4 +14,8 @@ public class MaintenanceRequest
     public MaintenanceStatus Status { get; set; } = MaintenanceStatus.Open;
     public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
     public DateTime? UpdatedAtUtc { get; set; }
+
+    public Property? Property { get; set; }
+    public Unit? Unit { get; set; }
+    public Tenant? Tenant { get; set; }
 }

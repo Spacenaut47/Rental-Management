@@ -7,10 +7,14 @@ namespace backend.Data.Seed;
 
 public static class SeedData
 {
-    public static async Task InitializeAsync(AppDbContext db, IPasswordHasher hasher, string adminPassword)
+    public static async Task InitializeAsync(AppDbContext db, IPasswordHasher hasher, string? adminPassword)
     {
-        if (!await db.Users.AnyAsync(u => u.Username == "admin"))
+        var admin = await db.Users.FirstOrDefaultAsync(u => u.NormalizedUsername == "ADMIN");
+        if (admin is null)
         {
+            if (string.IsNullOrWhiteSpace(adminPassword))
+                throw new InvalidOperationException("Seed:AdminPassword must be configured before creating the admin account.");
+
             hasher.CreatePasswordHash(adminPassword, out var hash, out var salt);
             db.Users.Add(new User
             {
@@ -22,6 +26,10 @@ public static class SeedData
                 PasswordSalt = salt,
                 Role = RoleType.Admin
             });
+        }
+        else if (admin.Role != RoleType.Admin)
+        {
+            throw new InvalidOperationException("The reserved 'admin' username exists but is not an administrator.");
         }
 
         if (!await db.Properties.AnyAsync())

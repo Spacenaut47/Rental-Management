@@ -573,11 +573,9 @@ tailwind.min.css
 *.db-wal
 
 # ===========================================
-# Database Migrations (EXCLUDED as requested)
+# Database Migrations
 # ===========================================
-# Migration files are kept in version control
-# Uncomment if you want to ignore specific migration patterns
-**/Migrations/
+# Migration files are kept in version control.
 *.migrations
 
 # ===========================================

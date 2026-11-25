@@ -1,4 +1,5 @@
 using System.Text.Json;
+using FluentValidation;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -26,10 +27,12 @@ public class ErrorHandlingMiddleware
         {
             var (status, reason, message) = ex switch
             {
+                ValidationException validationEx => (400, "Bad request", string.Join(" ", validationEx.Errors.Select(e => e.ErrorMessage))),
                 ArgumentException argEx => (400, "Bad request", argEx.Message),
                 InvalidOperationException opEx => (409, "Conflict", opEx.Message),
                 UnauthorizedAccessException => (403, "Forbidden", "You are not authorized for this operation."),
                 KeyNotFoundException => (404, "Not found", "The requested resource was not found."),
+                DbUpdateConcurrencyException => (409, "Conflict", "The resource was modified by another request."),
                 DbUpdateException dbEx when IsConstraintConflict(dbEx) => (409, "Conflict", "The operation conflicts with existing data."),
                 DbUpdateException => (500, "Internal server error", "A database error occurred."),
                 _ => (500, "Internal server error", "An unexpected error occurred.")

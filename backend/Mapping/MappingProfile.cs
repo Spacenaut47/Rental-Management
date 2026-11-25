@@ -20,7 +20,8 @@ public class MappingProfile : Profile
 
         // Units
         CreateMap<Unit, UnitReadDto>()
-            .ForMember(d => d.IsOccupied, o => o.MapFrom(s => s.Leases.Any(l => l.IsActive)));
+            .ForMember(d => d.IsOccupied, o => o.MapFrom(s =>
+                s.Leases.Any(l => l.IsActive && l.StartDateUtc <= DateTime.UtcNow && l.EndDateUtc > DateTime.UtcNow)));
         CreateMap<UnitCreateDto, Unit>().ForMember(d => d.IsOccupied, o => o.Ignore());
         CreateMap<UnitUpdateDto, Unit>().ForMember(d => d.IsOccupied, o => o.Ignore());
 
@@ -30,7 +31,9 @@ public class MappingProfile : Profile
         CreateMap<TenantUpdateDto, Tenant>();
 
         // Leases
-        CreateMap<Lease, LeaseReadDto>();
+        CreateMap<Lease, LeaseReadDto>()
+            .ForMember(d => d.IsActive, o => o.MapFrom(s =>
+                s.IsActive && s.StartDateUtc <= DateTime.UtcNow && s.EndDateUtc > DateTime.UtcNow));
         CreateMap<LeaseCreateDto, Lease>();
         CreateMap<LeaseUpdateDto, Lease>();
 

@@ -12,7 +12,6 @@ using backend.Services.Interfaces;
 using FluentValidation;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Sqlite;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
 using backend.Security;
@@ -164,8 +163,7 @@ using (var scope = app.Services.CreateScope())
         logger.LogInformation("Running idempotent seed...");
         var adminPassword = builder.Environment.IsDevelopment()
             ? "Admin@12345"
-            : builder.Configuration["Seed:AdminPassword"]
-                ?? throw new InvalidOperationException("Seed:AdminPassword must be configured outside Development.");
+            : builder.Configuration["Seed:AdminPassword"];
         await SeedData.InitializeAsync(db, hasher, adminPassword);
 
         logger.LogInformation("Database setup completed successfully.");

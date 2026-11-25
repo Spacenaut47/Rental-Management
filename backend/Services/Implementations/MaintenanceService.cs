@@ -1,6 +1,7 @@
 using AutoMapper;
 using AutoMapper.QueryableExtensions;
 using backend.Domain.Entities;
+using backend.Domain.Enums;
 using backend.Dtos.Maintenance;
 using backend.Repositories.Interfaces;
 using backend.Services.Interfaces;
@@ -64,8 +65,14 @@ public class MaintenanceService : IMaintenanceService
 
             if (dto.UnitId.HasValue)
             {
+                var now = DateTime.UtcNow;
                 var linked = await _uow.GetRepository<Lease>().Query()
-                    .AnyAsync(l => l.TenantId == dto.TenantId.Value && l.UnitId == dto.UnitId.Value);
+                    .AnyAsync(l =>
+                        l.TenantId == dto.TenantId.Value &&
+                        l.UnitId == dto.UnitId.Value &&
+                        l.IsActive &&
+                        l.StartDateUtc <= now &&
+                        l.EndDateUtc > now);
                 if (!linked)
                     throw new ArgumentException("Tenant is not associated with the specified unit.");
             }
@@ -85,6 +92,9 @@ public class MaintenanceService : IMaintenanceService
         var repo = _uow.GetRepository<MaintenanceRequest>();
         var existing = await repo.GetByIdAsync(id);
         if (existing is null) return null;
+
+        if (existing.Status == MaintenanceStatus.Closed && dto.Status != MaintenanceStatus.Closed)
+            throw new InvalidOperationException("Closed maintenance requests cannot be reopened.");
 
         _mapper.Map(dto, existing);
         existing.UpdatedAtUtc = DateTime.UtcNow;

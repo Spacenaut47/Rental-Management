@@ -11,7 +11,7 @@ public class User
     public string NormalizedEmail { get; set; } = string.Empty;
     public required byte[] PasswordHash { get; set; }
     public required byte[] PasswordSalt { get; set; }
-    public RoleType Role { get; set; } = RoleType.Manager;
+    public RoleType Role { get; set; } = RoleType.Tenant;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? UpdatedAt { get; set; }
 }

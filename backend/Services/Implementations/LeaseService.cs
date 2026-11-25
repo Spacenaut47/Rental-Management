@@ -46,6 +46,9 @@ public class LeaseService : ILeaseService
 
     public async Task<LeaseReadDto> CreateAsync(LeaseCreateDto dto, string actor)
     {
+        if (dto.StartDateUtc >= dto.EndDateUtc)
+            throw new ArgumentException("Start date must be before end date.");
+
         var unitExists = await _uow.GetRepository<Unit>().Query().AnyAsync(u => u.Id == dto.UnitId);
         if (!unitExists) throw new ArgumentException("Unit does not exist.");
 
@@ -75,6 +78,13 @@ public class LeaseService : ILeaseService
         var repo = _uow.GetRepository<Lease>();
         var existing = await repo.GetByIdAsync(id);
         if (existing is null) return null;
+
+        if (dto.StartDateUtc >= dto.EndDateUtc)
+            throw new ArgumentException("Start date must be before end date.");
+
+        if ((dto.UnitId != existing.UnitId || dto.TenantId != existing.TenantId) &&
+            await _uow.GetRepository<Payment>().Query().AnyAsync(p => p.LeaseId == id))
+            throw new InvalidOperationException("Cannot change the unit or tenant on a lease with payment history.");
 
         var unitExists = await _uow.GetRepository<Unit>().Query().AnyAsync(u => u.Id == dto.UnitId);
         if (!unitExists) throw new ArgumentException("Unit does not exist.");

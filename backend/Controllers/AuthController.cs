@@ -51,10 +51,10 @@ public class AuthController : ControllerBase
         var normalizedEmail = email.ToUpperInvariant();
 
         if ((await userRepo.FindAsync(u => u.NormalizedUsername == normalizedUsername)).Any())
-            return Conflict(new { message = "Username already exists." });
+            return Conflict(new { message = "Username already exists.", detail = "Username already exists." });
 
         if ((await userRepo.FindAsync(u => u.NormalizedEmail == normalizedEmail)).Any())
-            return Conflict(new { message = "Email already exists." });
+            return Conflict(new { message = "Email already exists.", detail = "Email already exists." });
 
         _hasher.CreatePasswordHash(request.Password, out var hash, out var salt);
 
@@ -102,7 +102,7 @@ public class AuthController : ControllerBase
             .FirstOrDefault();
 
         if (user is null || !_hasher.VerifyPassword(request.Password, user.PasswordHash, user.PasswordSalt))
-            return Unauthorized(new { message = "Invalid credentials." });
+            return Unauthorized(new { message = "Invalid credentials.", detail = "Invalid credentials." });
 
         var (token, expires) = _tokenService.CreateAccessToken(user);
 

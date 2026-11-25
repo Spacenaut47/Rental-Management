@@ -50,7 +50,7 @@ public class UnitService : IUnitService
 
         await _audit.WriteAsync(actor, "Created", nameof(Unit), entity.Id, $"Unit {entity.UnitNumber} @ Property {entity.PropertyId}");
 
-        return _mapper.Map<UnitReadDto>(entity);
+        return await ToReadDtoAsync(entity);
     }
 
     public async Task<UnitReadDto?> UpdateAsync(int id, UnitUpdateDto dto, string actor)
@@ -58,11 +58,15 @@ public class UnitService : IUnitService
         var existing = await _uow.Units.GetByIdAsync(id);
         if (existing is null) return null;
 
-        // If PropertyId is changed, ensure the new property exists
         if (dto.PropertyId != existing.PropertyId)
         {
             var propExists = await _uow.Properties.Query().AnyAsync(p => p.Id == dto.PropertyId);
             if (!propExists) throw new ArgumentException("Property does not exist.");
+
+            var hasLeases = await _uow.GetRepository<Lease>().Query().AnyAsync(l => l.UnitId == id);
+            var hasMaintenance = await _uow.GetRepository<MaintenanceRequest>().Query().AnyAsync(m => m.UnitId == id);
+            if (hasLeases || hasMaintenance)
+                throw new InvalidOperationException("Cannot move a unit that is referenced by leases or maintenance requests.");
         }
 
         _mapper.Map(dto, existing);
@@ -71,7 +75,19 @@ public class UnitService : IUnitService
 
         await _audit.WriteAsync(actor, "Updated", nameof(Unit), existing.Id, $"Unit {existing.UnitNumber} updated");
 
-        return _mapper.Map<UnitReadDto>(existing);
+        return await ToReadDtoAsync(existing);
+    }
+
+    private async Task<UnitReadDto> ToReadDtoAsync(Unit unit)
+    {
+        var dto = _mapper.Map<UnitReadDto>(unit);
+        var now = DateTime.UtcNow;
+        dto.IsOccupied = await _uow.GetRepository<Lease>().Query().AnyAsync(l =>
+            l.UnitId == unit.Id &&
+            l.IsActive &&
+            l.StartDateUtc <= now &&
+            l.EndDateUtc > now);
+        return dto;
     }
 
     public async Task<bool> DeleteAsync(int id, string actor)
